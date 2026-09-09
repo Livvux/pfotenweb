@@ -55,3 +55,5 @@ next-env.d.ts
 .runtime/
 /transfer/
 /backup/
+
+/THIRD_PARTY_LICENSES.txt

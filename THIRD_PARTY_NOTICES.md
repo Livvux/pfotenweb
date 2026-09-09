@@ -2,6 +2,8 @@
 
 Abhängigkeiten behalten ihre Lizenzen. Die exakt verwendeten Versionen stehen in
 pnpm-lock.yaml; vollständige Lizenztexte liegen in den jeweiligen Paketen.
+Container enthalten zusätzlich die beim Build gesammelten Lizenz- und
+Hinweisdateien unter /app/THIRD_PARTY_LICENSES.txt.
 
 - Next.js, React, Drizzle ORM, drizzle-zod, Zod, Tailwind CSS: MIT.
 - tar: Blue Oak Model License 1.0.0.

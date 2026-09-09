@@ -22,7 +22,7 @@ services:
     restart: 'no'
   app:
     build: .
-    image: ghcr.io/livvux/pfotenweb:${PFOTENWEB_VERSION:-v1.0.0}
+    image: ghcr.io/livvux/pfotenweb:${PFOTENWEB_VERSION:-v1.0.1}
     restart: unless-stopped
     env_file: .env
     environment:

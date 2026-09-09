@@ -53,7 +53,7 @@ RUN printf '\nnodeLinker: hoisted\n' >> pnpm-workspace.yaml
 ENV DATABASE_URL="postgres://build:build@127.0.0.1:1/leer"
 ENV BUILD_STANDALONE=true
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+RUN pnpm build && node scripts/collect-licenses.mjs
 
 # --- Laufzeit ---------------------------------------------------------------
 FROM node:${NODE_VERSION} AS runner
@@ -83,6 +83,7 @@ COPY --from=builder --chown=pfotenweb:pfotenweb /app/node_modules/zod ./node_mod
 
 RUN mkdir -p /data/uploads && chown -R pfotenweb:pfotenweb /data
 
+COPY --from=builder --chown=pfotenweb:pfotenweb /app/THIRD_PARTY_LICENSES.txt ./
 COPY --chown=pfotenweb:pfotenweb LICENSE THIRD_PARTY_NOTICES.md ./
 COPY --chown=pfotenweb:pfotenweb licenses ./licenses
 

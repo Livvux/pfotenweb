@@ -16,7 +16,7 @@ bleibt im internen Docker-Netz. Port 3000 ist nur lokal erreichbar.
 ```sh
 git clone https://github.com/Livvux/pfotenweb.git
 cd pfotenweb
-git checkout v1.0.0
+git checkout v1.0.1
 cp .env.example .env
 openssl rand -hex 32
 ```
