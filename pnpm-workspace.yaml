@@ -1,0 +1,9 @@
+# pnpm 11 verlangt fuer jedes Paket mit Installationsskript eine ausdrueckliche
+# Entscheidung. Fehlt sie, scheitert `pnpm install` an ERR_PNPM_IGNORED_BUILDS
+# und schreibt eine Platzhalterzeile in diese Datei, die als ungueltiger Wert
+# danach jeden weiteren pnpm-Befehl blockiert. Neue Abhaengigkeit mit Skript
+# heisst also: hier true oder false eintragen.
+allowBuilds:
+  esbuild: true
+  # Plattformpaket kommt als optionale Abhaengigkeit, ein Build bringt nichts.
+  unrs-resolver: false

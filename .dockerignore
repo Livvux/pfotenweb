@@ -1,0 +1,21 @@
+node_modules
+.next
+.git
+.github
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+.playwright-cli
+*.tsbuildinfo
+# Laufzeit-Uploads gehoeren ins Volume, nicht ins Image.
+public/uploads/t*
+docs
+*.md
+!README.md
+
+.runtime
+!THIRD_PARTY_NOTICES.md
+!LICENSE
+!licenses/**

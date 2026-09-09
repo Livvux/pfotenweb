@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pfotenweb
+      POSTGRES_DB: pfotenweb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Bitte .env einrichten}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U pfotenweb]
+      interval: 5s
+      retries: 10
+  setup:
+    build: {context: ., target: builder}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pfotenweb:${POSTGRES_PASSWORD}@db:5432/pfotenweb
+    command: [sh, -c, 'pnpm db:migrate && pnpm setup']
+    depends_on:
+      db: {condition: service_healthy}
+    restart: 'no'
+  app:
+    build: .
+    image: ghcr.io/livvux/pfotenweb:${PFOTENWEB_VERSION:-v1.0.0}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pfotenweb:${POSTGRES_PASSWORD}@db:5432/pfotenweb
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads]
+    ports: ['127.0.0.1:3000:3000']
+    depends_on:
+      setup: {condition: service_completed_successfully}
+  caddy:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Domain eintragen}
+      ACME_EMAIL: ${ACME_EMAIL:?Kontakt für Zertifikate eintragen}
+    ports: ['80:80', '443:443']
+    volumes: ['./Caddyfile:/etc/caddy/Caddyfile:ro', 'caddy_data:/data', 'caddy_config:/config']
+    depends_on: [app]
+  import:
+    user: "1001:1001"
+    profiles: [tools]
+    build: {context: ., target: builder}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://pfotenweb:${POSTGRES_PASSWORD}@db:5432/pfotenweb
+      UPLOAD_DIR: /data/uploads
+    volumes: [uploads:/data/uploads, './transfer:/transfer:ro']
+    command: [./node_modules/.bin/tsx, scripts/import.ts, /transfer/pfotenweb-export.tar.gz]
+    depends_on:
+      db: {condition: service_healthy}
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

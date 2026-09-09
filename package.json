@@ -1,0 +1,57 @@
+{
+  "name": "pfotenweb",
+  "version": "1.0.0",
+  "private": false,
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && pnpm build:runtime",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env .runtime/env.selftest.js && next start",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "db:up": "docker compose up -d",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "check": "tsx src/lib/password.selftest.ts",
+    "check:env": "tsx --env-file-if-exists=.env src/lib/env.selftest.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "build:runtime": "tsc src/lib/env.ts src/lib/env.selftest.ts --outDir .runtime --module commonjs --target es2022 --esModuleInterop --skipLibCheck",
+    "setup": "tsx --env-file-if-exists=.env scripts/setup.ts",
+    "data:import": "tsx --env-file-if-exists=.env scripts/import.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
+    "next": "16.3.1",
+    "nodemailer": "^9.0.5",
+    "postgres": "^3.4.9",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "tar": "7.5.22",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "description": "Eine selbst gehostete Website f\u00fcr einen Tierschutzverein",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Livvux/pfotenweb.git"
+  }
+}

@@ -1,0 +1,43 @@
+name: Check single installation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pfotenweb
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: pfotenweb
+        ports: ['5432:5432']
+        options: --health-cmd='pg_isready -U pfotenweb' --health-interval=5s --health-retries=10
+    env:
+      DATABASE_URL: postgres://pfotenweb:ci-only-password@127.0.0.1:5432/pfotenweb
+      SITE_URL: http://localhost:3000
+      E2E_BASE_URL: http://localhost:3000
+      INITIAL_ADMIN_USERNAME: vorstand
+      INITIAL_ADMIN_PASSWORD: ci-only-admin-password
+      INITIAL_ORG_NAME: CI Verein
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck && pnpm lint && pnpm check
+      - run: pnpm db:migrate && pnpm setup && pnpm setup
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: |
+          pnpm start > /tmp/pfotenweb.log 2>&1 &
+          for attempt in $(seq 1 60); do curl -fsS http://localhost:3000/api/health && break; sleep 1; done
+          pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure
+          path: test-results
