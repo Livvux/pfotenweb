@@ -7,3 +7,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Self-Hosted-Grenze
+
+Diese Codebasis bleibt eine eigenständige Single-Verein-Edition. Vor jedem Push
+`python3 scripts/check-edition.py` und den vollständigen Veröffentlichungsdiff
+prüfen. Neue Dateien/Abhängigkeiten nur bewusst in der Freigabeliste ergänzen.
+Keine privaten Repository-Historien übernehmen. Umfang und Releases: `docs/editions.md`.

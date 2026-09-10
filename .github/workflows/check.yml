@@ -23,6 +23,7 @@ jobs:
       INITIAL_ORG_NAME: CI Verein
     steps:
       - uses: actions/checkout@v4
+      - run: python3 scripts/check-edition.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
