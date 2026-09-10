@@ -116,3 +116,7 @@ Für E-Mails optional SMTP konfigurieren. Ohne SMTP bleiben Kontaktanfragen in
 siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Keine Tierfotos enthalten.
 GitHub-Issues dienen Fehlerberichten und Wünschen; keine garantierte Antwortzeit.
 Sicherheitsprobleme bitte vertraulich an lucas@lkmedia.net melden.
+
+## Editionsumfang und Updates
+
+Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/editions.md).
