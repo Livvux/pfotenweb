@@ -55,7 +55,10 @@ export function SiteFooter({ settings }: { settings: TenantSettings }) {
           <p>
             © {new Date().getFullYear()} {settings.orgName}
           </p>
-          <div className="flex gap-5">
+          <a href="https://pfotenweb.de" className="transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+            Mit Pfotenweb erstellt
+          </a>
+          <div className="flex flex-wrap gap-5">
             <Link href="/impressum" className="transition hover:text-white">
               Impressum
             </Link>
