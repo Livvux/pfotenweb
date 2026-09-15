@@ -19,7 +19,8 @@
     "test:e2e:ui": "playwright test --ui",
     "build:runtime": "tsc src/lib/env.ts src/lib/env.selftest.ts --outDir .runtime --module commonjs --target es2022 --esModuleInterop --skipLibCheck",
     "setup": "tsx --env-file-if-exists=.env scripts/setup.ts",
-    "data:import": "tsx --env-file-if-exists=.env scripts/import.ts"
+    "data:import": "tsx --env-file-if-exists=.env scripts/import.ts",
+    "check:import": "tsx scripts/import.selftest.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -49,7 +50,7 @@
     "typescript": "^5"
   },
   "packageManager": "pnpm@11.21.0",
-  "description": "Eine selbst gehostete Website f\u00fcr einen Tierschutzverein",
+  "description": "Eine selbst gehostete Website für einen Tierschutzverein",
   "repository": {
     "type": "git",
     "url": "https://github.com/Livvux/pfotenweb.git"

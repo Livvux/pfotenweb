@@ -20,7 +20,9 @@ ARG NODE_VERSION=24-alpine
 FROM node:${NODE_VERSION} AS builder
 RUN corepack enable
 WORKDIR /app
-RUN mkdir -p /data/uploads && chown 1001:1001 /data/uploads
+RUN mkdir -p /data/uploads /data/import-archives \
+ && chown 1001:1001 /data/uploads /data/import-archives \
+ && chmod 700 /data/import-archives
 
 # Erst nur die Manifeste. Aendert sich nur der Quelltext, bleibt diese Schicht
 # im Cache und die Installation entfaellt.

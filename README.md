@@ -57,8 +57,9 @@ docker compose start app
 ```
 
 Teamkonten richten Sie anschließend neu ein. Abrechnung, Passwörter und Sitzungen
-werden nicht übertragen. Entfernen Sie das Archiv nach erfolgreicher Prüfung
-vom Server. Der Import prüft Format, Pfade, Größen, Prüfsummen und Referenzen;
+werden nicht übertragen. Entfernen Sie nach erfolgreicher Prüfung nur die Transferkopie. Das vollständige
+Quellarchiv mit Zusatzdaten bleibt im privaten Docker-Volume `import_archives`
+unter `/data/import-archives` erhalten, auch nach `docker compose run --rm`. Der Import prüft Format, Pfade, Größen, Prüfsummen und Referenzen;
 bei einem Fehler werden importierte Daten und Dateien zurückgerollt.
 
 ## Sicherung und Wiederherstellung
@@ -72,6 +73,7 @@ mkdir -p backup
 docker compose stop app
 docker compose exec -T db pg_dump -U pfotenweb -d pfotenweb -Fc > backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -czf - -C /data/uploads . > backup/uploads.tar.gz
+docker compose run -T --rm --no-deps --entrypoint tar import -czf - -C /data/import-archives . > backup/import-archives.tar.gz
 docker compose start app
 ```
 
@@ -80,6 +82,7 @@ Wiederherstellung auf einer passenden, leeren Installation, mit gestoppter App:
 ```sh
 docker compose exec -T db pg_restore -U pfotenweb -d pfotenweb --clean --if-exists < backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -xzf - -C /data/uploads < backup/uploads.tar.gz
+docker compose run -T --rm --no-deps --entrypoint tar import -xzf - -C /data/import-archives < backup/import-archives.tar.gz
 docker compose start app
 ```
 
@@ -120,3 +123,20 @@ Sicherheitsprobleme bitte vertraulich an lucas@lkmedia.net melden.
 ## Editionsumfang und Updates
 
 Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/editions.md).
+
+### Import aus neueren Exporten
+
+Der Offline-Import liest das gemeinsame Archivformat bis Version 14. Tiere,
+Tierbilder, Beiträge, Anfragen und die unterstützten Vereinsfelder werden in die
+frisch eingerichtete, ansonsten leere Installation übernommen. App vorher stoppen.
+
+Zusätzliche Felder und Medien werden **nicht stillschweigend verworfen**. Dafür
+muss `IMPORT_ARCHIVE_DIR` auf ein absolutes, privates Verzeichnis außerhalb von
+`public` und `UPLOAD_DIR` zeigen. Der Import prüft sämtliche Dateien und behält
+das vollständige Quellarchiv dort unverändert mit Dateirechten `0600`. Die Ausgabe
+nennt alle zusätzlichen Datenbereiche und den Archivpfad. Diese Zusatzdaten sind
+archiviert, werden von dieser Edition aber nicht angezeigt oder weiterbearbeitet.
+Dazu zählen beispielsweise erweiterte Steckbriefe, Antwortverläufe, zusätzliche
+Kontaktfelder, Gestaltungseinstellungen und weitere Medien. Quellarchiv in die
+private Datensicherung aufnehmen; der normale Website-Export enthält nur die
+hier unterstützten Daten. Unbekannte zukünftige Versionen werden abgelehnt.

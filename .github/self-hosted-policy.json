@@ -131,7 +131,9 @@
     "src/lib/tenant.ts",
     "src/lib/theme.ts",
     "src/lib/users.ts",
-    "tsconfig.json"
+    "tsconfig.json",
+    "src/lib/import-compatibility.ts",
+    "scripts/import.selftest.ts"
   ],
   "dependencies": [
     "@playwright/test",

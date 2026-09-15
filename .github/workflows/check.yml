@@ -12,10 +12,11 @@ jobs:
           POSTGRES_USER: pfotenweb
           POSTGRES_PASSWORD: ci-only-password
           POSTGRES_DB: pfotenweb
-        ports: ['5432:5432']
+        ports: ['55439:5432']
         options: --health-cmd="pg_isready -U pfotenweb" --health-interval=5s --health-retries=10
     env:
-      DATABASE_URL: postgres://pfotenweb:ci-only-password@127.0.0.1:5432/pfotenweb
+      DATABASE_URL: postgres://pfotenweb:ci-only-password@127.0.0.1:55439/pfotenweb
+      UPLOAD_DIR: /tmp/pfotenweb-ci-uploads
       SITE_URL: http://localhost:3000
       E2E_BASE_URL: http://localhost:3000
       INITIAL_ADMIN_USERNAME: vorstand
@@ -30,7 +31,7 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck && pnpm lint && pnpm check
-      - run: pnpm db:migrate && pnpm setup && pnpm setup
+      - run: pnpm db:migrate && pnpm check:import && pnpm setup && pnpm setup
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - run: |

@@ -1,40 +1,58 @@
+import { constants } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdir, mkdtemp, realpath, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { list, extract } from "tar";
 import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { animals, animalImages, posts, inquiries, tenantSettings, tenants } from "@/db/schema";
-import { exportSchema } from "./export-format";
+import { compatibleImport } from "./import-compatibility";
 import { publicRoot } from "./storage";
 
 /** Offline import into a fresh installation; production app must be stopped. */
-export async function importData(file: string, tenantId: number): Promise<void> {
+export async function importData(file: string, tenantId: number): Promise<{ additional: string[]; sourceArchive: string | null }> {
   const stage = await mkdtemp(path.join(tmpdir(), "pfotenweb-import-"));
   const copied: string[] = [];
+  let sourceArchive: string | null = null;
   try {
     const seen = new Set<string>();
     let total = 0;
     let invalid = false;
     await list({ file, strict: true, onReadEntry(entry) {
       const name = entry.path;
-      const valid = (name === "images/" && entry.type === "Directory") || ((name === "manifest.json" || /^images\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(name)) && entry.type === "File");
+      const valid = (name === "images/" && entry.type === "Directory") || ((name === "manifest.json" || /^images\/[a-f0-9]{64}\.(jpg|png|webp|mp4|pdf)$/.test(name)) && entry.type === "File");
       total += entry.size;
-      if (!valid || seen.has(name) || total > 50_000_000_000 || seen.size > 500_001 || (name === "manifest.json" ? entry.size > 100_000_000 : entry.size > 5 * 1024 * 1024)) invalid = true;
+      if (!valid || seen.has(name) || total > 50_000_000_000 || seen.size > 500_001 || (name === "manifest.json" ? entry.size > 100_000_000 : entry.size > 50_000_000)) invalid = true;
       seen.add(name);
     } });
     if (invalid || !seen.has("manifest.json")) throw new Error("Archiv enthält ungültige Pfade, Dateien oder Größen.");
     await extract({ file, cwd: stage, strict: true, noChmod: true, noMtime: true, filter: (name) => seen.has(name) });
-    const data = exportSchema.parse(JSON.parse(await readFile(path.join(stage, "manifest.json"), "utf8")));
+    const compatible = compatibleImport(JSON.parse(await readFile(path.join(stage, "manifest.json"), "utf8")));
+    const { data } = compatible;
     const files = new Map<string, string>();
-    for (const image of data.files) {
+    const importedFiles = new Set(data.files.map(file => file.name));
+    for (const image of compatible.files) {
       const source = path.join(stage, "images", image.name);
       const bytes = await readFile(source);
       if (bytes.length !== image.bytes || createHash("sha256").update(bytes).digest("hex") !== image.sha256) throw new Error("Bild-Prüfsumme stimmt nicht.");
-      files.set(`images/${image.name}`, `${randomBytes(12).toString("hex")}${path.extname(image.name)}`);
+      if (importedFiles.has(image.name)) files.set(`images/${image.name}`, `${randomBytes(12).toString("hex")}${path.extname(image.name)}`);
     }
-    if (seen.size !== data.files.length + 2) throw new Error("Archiv enthält nicht zugeordnete Dateien.");
+    if (seen.size !== compatible.files.length + 2) throw new Error("Archiv enthält nicht zugeordnete Dateien.");
+    if (compatible.additional.length) {
+      const archiveRoot = process.env.IMPORT_ARCHIVE_DIR;
+      if (!archiveRoot || !path.isAbsolute(archiveRoot)) throw new Error("Zusatzdaten benötigen IMPORT_ARCHIVE_DIR als absolutes privates Archivverzeichnis.");
+      await mkdir(archiveRoot, { recursive: true, mode: 0o700 });
+      const absolute = await realpath(archiveRoot);
+      for (const directory of [publicRoot(), path.resolve("public")]) {
+        const forbidden = await realpath(directory).catch(() => path.resolve(directory));
+        const relative = path.relative(forbidden, absolute);
+        if (!relative || (!relative.startsWith(".." + path.sep) && relative !== ".." && !path.isAbsolute(relative))) throw new Error("Importarchiv muss außerhalb öffentlich ausgelieferter Verzeichnisse liegen.");
+      }
+      sourceArchive = path.join(absolute, `source-${randomBytes(16).toString("hex")}.tar.gz`);
+      await copyFile(file, sourceArchive, constants.COPYFILE_EXCL);
+      await chmod(sourceArchive, 0o600);
+    }
     const imageUrl = (url: string | null): string | null => {
       if (!url) return null;
       const name = files.get(url);
@@ -86,8 +104,10 @@ export async function importData(file: string, tenantId: number): Promise<void> 
       }
       await tx.update(tenantSettings).set({ ...data.settings, logoUrl: imageUrl(data.settings.logoUrl), heroImageUrl: imageUrl(data.settings.heroImageUrl) }).where(eq(tenantSettings.tenantId, tenantId));
     });
+    return { additional: compatible.additional, sourceArchive };
   } catch (error) {
     await Promise.all(copied.map((name) => rm(name, { force: true })));
+    if (sourceArchive) await rm(sourceArchive, { force: true });
     throw error;
   } finally { await rm(stage, { recursive: true, force: true }); }
 }
