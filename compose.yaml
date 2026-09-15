@@ -50,12 +50,14 @@ services:
     environment:
       DATABASE_URL: postgres://pfotenweb:${POSTGRES_PASSWORD}@db:5432/pfotenweb
       UPLOAD_DIR: /data/uploads
-    volumes: [uploads:/data/uploads, './transfer:/transfer:ro']
+      IMPORT_ARCHIVE_DIR: /data/import-archives
+    volumes: [uploads:/data/uploads, 'import_archives:/data/import-archives', './transfer:/transfer:ro']
     command: [./node_modules/.bin/tsx, scripts/import.ts, /transfer/pfotenweb-export.tar.gz]
     depends_on:
       db: {condition: service_healthy}
 volumes:
   pgdata:
   uploads:
+  import_archives:
   caddy_data:
   caddy_config:

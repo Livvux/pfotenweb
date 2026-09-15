@@ -57,8 +57,9 @@ docker compose start app
 ```
 
 Teamkonten richten Sie anschließend neu ein. Abrechnung, Passwörter und Sitzungen
-werden nicht übertragen. Entfernen Sie das Archiv nach erfolgreicher Prüfung
-vom Server. Der Import prüft Format, Pfade, Größen, Prüfsummen und Referenzen;
+werden nicht übertragen. Entfernen Sie nach erfolgreicher Prüfung nur die Transferkopie. Das vollständige
+Quellarchiv mit Zusatzdaten bleibt im privaten Docker-Volume `import_archives`
+unter `/data/import-archives` erhalten, auch nach `docker compose run --rm`. Der Import prüft Format, Pfade, Größen, Prüfsummen und Referenzen;
 bei einem Fehler werden importierte Daten und Dateien zurückgerollt.
 
 ## Sicherung und Wiederherstellung
@@ -72,6 +73,7 @@ mkdir -p backup
 docker compose stop app
 docker compose exec -T db pg_dump -U pfotenweb -d pfotenweb -Fc > backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -czf - -C /data/uploads . > backup/uploads.tar.gz
+docker compose run -T --rm --no-deps --entrypoint tar import -czf - -C /data/import-archives . > backup/import-archives.tar.gz
 docker compose start app
 ```
 
@@ -80,6 +82,7 @@ Wiederherstellung auf einer passenden, leeren Installation, mit gestoppter App:
 ```sh
 docker compose exec -T db pg_restore -U pfotenweb -d pfotenweb --clean --if-exists < backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -xzf - -C /data/uploads < backup/uploads.tar.gz
+docker compose run -T --rm --no-deps --entrypoint tar import -xzf - -C /data/import-archives < backup/import-archives.tar.gz
 docker compose start app
 ```
 
