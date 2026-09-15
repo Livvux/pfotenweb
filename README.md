@@ -120,3 +120,20 @@ Sicherheitsprobleme bitte vertraulich an lucas@lkmedia.net melden.
 ## Editionsumfang und Updates
 
 Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/editions.md).
+
+### Import aus neueren Exporten
+
+Der Offline-Import liest das gemeinsame Archivformat bis Version 14. Tiere,
+Tierbilder, Beiträge, Anfragen und die unterstützten Vereinsfelder werden in die
+frisch eingerichtete, ansonsten leere Installation übernommen. App vorher stoppen.
+
+Zusätzliche Felder und Medien werden **nicht stillschweigend verworfen**. Dafür
+muss `IMPORT_ARCHIVE_DIR` auf ein absolutes, privates Verzeichnis außerhalb von
+`public` und `UPLOAD_DIR` zeigen. Der Import prüft sämtliche Dateien und behält
+das vollständige Quellarchiv dort unverändert mit Dateirechten `0600`. Die Ausgabe
+nennt alle zusätzlichen Datenbereiche und den Archivpfad. Diese Zusatzdaten sind
+archiviert, werden von dieser Edition aber nicht angezeigt oder weiterbearbeitet.
+Dazu zählen beispielsweise erweiterte Steckbriefe, Antwortverläufe, zusätzliche
+Kontaktfelder, Gestaltungseinstellungen und weitere Medien. Quellarchiv in die
+private Datensicherung aufnehmen; der normale Website-Export enthält nur die
+hier unterstützten Daten. Unbekannte zukünftige Versionen werden abgelehnt.
