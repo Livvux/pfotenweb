@@ -13,6 +13,12 @@ Diese öffentliche Version enthält keine Plattformverwaltung oder Abrechnung.
 Voraussetzungen: eigener Linux-Server, Docker mit Compose, Domain. PostgreSQL
 bleibt im internen Docker-Netz. Port 3000 ist nur lokal erreichbar.
 
+**Versionshinweis:** Die folgende Installation wählt das veröffentlichte
+Release `v1.0.1`, nicht den Entwicklungsstand auf `main`. Dieses Release liest
+nur Archivformat 1. Für neuere Archive zuerst die [Kompatibilitätstabelle](#import-aus-neueren-exporten)
+und die Hinweise des tatsächlich gewählten Releases prüfen. Ein PR oder grünes
+`main` ist noch kein veröffentlichtes Update.
+
 ```sh
 git clone https://github.com/Livvux/pfotenweb.git
 cd pfotenweb
@@ -126,7 +132,13 @@ Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/edit
 
 ### Import aus neueren Exporten
 
-Der Offline-Import liest das gemeinsame Archivformat bis Version 14. Tiere,
+| Installierter Stand | Lesbare Archivformate |
+| --- | --- |
+| Veröffentlichtes Release `v1.0.1` | 1 |
+| Dieser Entwicklungsstand (noch kein neues Release) | 1–15 |
+
+Der Offline-Import dieses Entwicklungsstands liest das gemeinsame Archivformat
+bis Version 15. Der eigene Self-Hosted-Export bleibt bei Format 1. Tiere,
 Tierbilder, Beiträge, Anfragen und die unterstützten Vereinsfelder werden in die
 frisch eingerichtete, ansonsten leere Installation übernommen. App vorher stoppen.
 
@@ -140,3 +152,8 @@ Dazu zählen beispielsweise erweiterte Steckbriefe, Antwortverläufe, zusätzlic
 Kontaktfelder, Gestaltungseinstellungen und weitere Medien. Quellarchiv in die
 private Datensicherung aufnehmen; der normale Website-Export enthält nur die
 hier unterstützten Daten. Unbekannte zukünftige Versionen werden abgelehnt.
+
+Bei Format 15 werden auch Bewertungseinstellungen, Rückmeldungen und zugehörige
+Medien ausschließlich im Originalarchiv erhalten. Sie werden weder öffentlich
+angezeigt noch als Benachrichtigungen erneut ausgeführt. Auch ein Archiv ohne
+Zusatzbereiche bleibt vor dem Umzug geschützt aufzubewahren.

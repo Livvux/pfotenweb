@@ -2,8 +2,10 @@ import { z } from "zod";
 import { exportSchema, type ExportData } from "./export-format";
 
 const record = z.record(z.string(), z.unknown());
+// Only reviewed archive envelopes are accepted. Additional sections remain
+// opaque and are retained in the private source archive, never activated.
 const envelope = z.object({
-  format: z.literal("pfotenweb-single"), version: z.number().int().min(1).max(14), exportedAt: z.coerce.date(),
+  format: z.literal("pfotenweb-single"), version: z.number().int().min(1).max(15), exportedAt: z.coerce.date(),
   settings: record, animals: z.array(record).max(100000), images: z.array(record).max(500000),
   posts: z.array(record).max(100000), inquiries: z.array(record).max(500000),
   files: z.array(z.object({ name: z.string().regex(/^[a-f0-9]{64}\.(jpg|png|webp|mp4|pdf)$/), bytes: z.number().int().nonnegative().max(50000000), sha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).max(500000),
