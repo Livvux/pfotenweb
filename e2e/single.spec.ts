@@ -150,7 +150,8 @@ test.describe("Tierfilter: Basisfunktion ohne neue Module", () => {
     const all = filters.getByRole("link", { name: "Alle", exact: true });
     await all.focus();
     await expect(all).toBeFocused();
-    await expect(all).toHaveCSS("transition-duration", "0s");
+    // transition-none deaktiviert die Eigenschaften, nicht die gespeicherte Dauer.
+    await expect(all).toHaveCSS("transition-property", "none");
     await all.press("Enter");
     await expect(page).toHaveURL(/\/tiere$/);
     await expect(all).toHaveAttribute("aria-current", "true");
