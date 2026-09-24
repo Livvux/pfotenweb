@@ -9,6 +9,32 @@ Pfotenweb Cloud ist die separat betriebene gehostete Edition. Plattformverwaltun
 Abrechnung, Domain-Automatisierung, Social-Synchronisierung und Pro-Videos sind
 nicht Teil dieser Codebasis. Cloud und Self-Hosted haben getrennte Releases.
 
+## Wartungsfokus
+
+Die Produktentwicklung konzentriert sich auf Pfotenweb Cloud. Self-Hosted erhält
+kleine, gebündelte Fehlerkorrekturen, Sicherheitsupdates und Verbesserungen an
+bestehenden Abläufen; es gibt keine automatische Funktionsparität mit Cloud.
+Ein Eintrag in einer Übernahmeliste ist keine Zusage für ein neues Modul.
+Wichtige neue Funktionen benötigen eine eigene ausdrückliche Produktentscheidung.
+
+## Kleine Wartungsrunde: Tierfilter
+
+Die bestehenden Filter verwenden in neuen Links einheitlich `art`. Bereits
+geteilte Links mit `species` bleiben lesbar. Tierart und Vermittlungsstatus lassen
+sich kombinieren und bleiben beide als aktiv erkennbar; „Alle“ entfernt sämtliche
+Filter. Ungültige oder mehrfach angegebene Filterwerte werden nicht als Auswahl
+übernommen. Ein gültiges `art` hat Vorrang vor `species`; ein mehrfaches `art`
+wird auch nicht durch den Alias ersetzt.
+
+Die Filter haben mindestens 44 Pixel große Bedienflächen, einen sichtbaren
+Tastaturfokus und berücksichtigen die Systemeinstellung für reduzierte Bewegung.
+Browserregressionen decken Link-Kompatibilität, Kombinationen, Zurücksetzen und
+schmale Smartphone-Ansichten ab.
+
+Keine neuen Module, Abhängigkeiten, Datenbankmigrationen oder Änderungen am
+Import-/Exportformat. Das normale Updateverfahren aus der README genügt; die
+Sicherung vor einem Update bleibt empfohlen.
+
 ## Änderungen und Veröffentlichungen
 
 - Relevante Sicherheitskorrekturen bevorzugt ausliefern, normale Verbesserungen
