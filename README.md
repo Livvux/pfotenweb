@@ -8,6 +8,8 @@ MIT-lizenziert: selbst installieren, anpassen und weitergeben.
 Für Hosting ohne Serververwaltung gibt es [Pfotenweb](https://pfotenweb.de).
 Diese öffentliche Version enthält keine Plattformverwaltung oder Abrechnung.
 
+<img width="1270" height="894" alt="pfotenweb" src="https://github.com/user-attachments/assets/4f326e09-b916-466e-8706-23c701e7b0e2" />
+
 ## Installation mit Docker Compose
 
 Voraussetzungen: eigener Linux-Server, Docker mit Compose, Domain. PostgreSQL
@@ -121,6 +123,8 @@ Für E-Mails optional SMTP konfigurieren. Ohne SMTP bleiben Kontaktanfragen in
 
 ## Lizenz und Hilfe
 
+Anleitung zum Installieren: <a href="https://livvux.dev/blog/animal-rescue-websites/de>https://livvux.dev/blog/animal-rescue-websites/de</a>
+
 [MIT](LICENSE). Abhängigkeiten und Schriften behalten ihre jeweiligen Lizenzen;
 siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Keine Tierfotos enthalten.
 GitHub-Issues dienen Fehlerberichten und Wünschen; keine garantierte Antwortzeit.
@@ -129,6 +133,11 @@ Sicherheitsprobleme bitte vertraulich an lucas@lkmedia.net melden.
 ## Editionsumfang und Updates
 
 Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/editions.md).
+
+## Tierprofile
+
+<img width="1324" height="800" alt="tierprofil" src="https://github.com/user-attachments/assets/b4da3e15-4f9f-4f23-bcfa-4c070ecdc659" />
+
 
 ### Import aus neueren Exporten
 
