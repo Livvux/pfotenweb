@@ -43,7 +43,7 @@ function FilterPill({
     <Link
       href={href}
       aria-current={active ? "true" : undefined}
-      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-800 motion-reduce:transition-none ${
         active
           ? "bg-brand-800 text-white"
           : "bg-white text-ink/70 ring-1 ring-brand-100 hover:bg-brand-50 hover:text-brand-900"
@@ -59,11 +59,18 @@ export default async function TierePage({
 }: PageProps<"/tiere">) {
   const params = await searchParams;
   const art = typeof params.art === "string" ? params.art : undefined;
+  const legacySpecies =
+    typeof params.species === "string" ? params.species : undefined;
   const status =
     typeof params.status === "string" ? params.status : undefined;
 
   const filters: Filter = {};
   if (isValidSpecies(art)) filters.species = art;
+  // Alte geteilte Links bleiben lesbar. Mehrdeutige art-Parameter nicht
+  // durch einen Alias ersetzen; neu erzeugte Links verwenden immer art.
+  else if (!Array.isArray(params.art) && isValidSpecies(legacySpecies)) {
+    filters.species = legacySpecies;
+  }
   if (isValidStatus(status)) filters.status = status;
 
   // Bewusst eine einzige Abfrage: der Bestand eines Vereins ist klein genug,
@@ -83,9 +90,9 @@ export default async function TierePage({
       status: filters.status,
       ...next,
     };
-    const qs = new URLSearchParams(
-      Object.entries(merged).filter(([, v]) => v) as [string, string][],
-    );
+    const qs = new URLSearchParams();
+    if (merged.species) qs.set("art", merged.species);
+    if (merged.status) qs.set("status", merged.status);
     const s = qs.toString();
     return s ? `/tiere?${s}` : "/tiere";
   };
@@ -101,8 +108,8 @@ export default async function TierePage({
         uns. Ein Kennenlerngespräch ist immer der erste Schritt.
       </p>
 
-      <div className="mt-8 flex flex-wrap items-center gap-2">
-        <FilterPill href={buildHref({})} active={Object.keys(filters).length === 0}>
+      <nav aria-label="Tierfilter" className="mt-8 flex flex-wrap items-center gap-2">
+        <FilterPill href="/tiere" active={Object.keys(filters).length === 0}>
           Alle
         </FilterPill>
         {(Object.keys(SPECIES_LABELS) as Animal["species"][])
@@ -111,7 +118,7 @@ export default async function TierePage({
             <FilterPill
               key={s}
               href={buildHref({ species: s })}
-              active={filters.species === s && !filters.status}
+              active={filters.species === s}
             >
               {SPECIES_LABELS[s]}
             </FilterPill>
@@ -126,7 +133,7 @@ export default async function TierePage({
             {STATUS_LABELS[st]}
           </FilterPill>
         ))}
-      </div>
+      </nav>
 
       {list.length === 0 ? (
         <div className="mt-12 rounded-3xl bg-white p-10 text-center ring-1 ring-brand-100">
