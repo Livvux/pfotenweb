@@ -246,3 +246,28 @@ test("Tierpflege ohne JavaScript: alle Pflichtfelder und native Fotoübermittlun
     expect(Number((await sql`select count(*)::int as n from animal_images where animal_id=${animal.id}`)[0].n)).toBe(1);
   } finally { await context.close(); await sql`delete from animals where name=${name}`; await sql.end(); }
 });
+
+test("Öffentliche Bewegung: native Dauer, Reduced Motion und sichtbarer Inhalt ohne JavaScript", async ({ page, browser }) => {
+  await page.addInitScript(() => {
+    const durations: number[] = [];
+    Object.defineProperty(window, "__qaMotionDurations", { value: durations });
+    const original = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      if (typeof options === "object" && typeof options.duration === "number") durations.push(options.duration);
+      return original.call(this, frames, options);
+    };
+  });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, "__qaMotionDurations"))).toContain(700);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload(); await page.waitForLoadState("networkidle");
+  expect(await page.evaluate(() => Reflect.get(window, "__qaMotionDurations"))).toEqual([]);
+  await expect(page.locator("main section").first()).toHaveCSS("opacity", "1");
+  const context = await browser.newContext({ javaScriptEnabled: false, ignoreHTTPSErrors: true });
+  try {
+    const plain = await context.newPage(); await plain.goto("/");
+    await expect(plain.locator("main section").first()).toBeVisible();
+    await expect(plain.locator("main section").first()).toHaveCSS("opacity", "1");
+  } finally { await context.close(); }
+});
