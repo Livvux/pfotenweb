@@ -82,6 +82,8 @@ COPY --from=builder --chown=pfotenweb:pfotenweb /app/public ./public
 COPY --from=builder --chown=pfotenweb:pfotenweb /app/.runtime ./.runtime
 # Startup validation runs outside the Next bundle and needs its own Zod module.
 COPY --from=builder --chown=pfotenweb:pfotenweb /app/node_modules/zod ./node_modules/zod
+# The standalone app bundles its SQL client; the separate cleanup script imports it.
+COPY --from=builder --chown=pfotenweb:pfotenweb /app/node_modules/postgres ./node_modules/postgres
 
 RUN mkdir -p /data/uploads && chown -R pfotenweb:pfotenweb /data
 
