@@ -1,5 +1,7 @@
 "use client";
 
+import { an } from "@/lib/anrede";
+import { useAnrede } from "@/components/anrede-provider";
 import { useActionState } from "react";
 import {
   changeOwnPassword,
@@ -7,11 +9,12 @@ import {
   createUser,
   deleteUser,
   resetUserPassword,
+  updateUserAccess,
 } from "@/lib/actions/users";
 import type { FormState } from "@/lib/form";
 // Aus roles.ts, NICHT aus users.ts: users.ts importiert @/db und wuerde den
 // Postgres-Treiber in dieses Client-Bundle ziehen.
-import { ROLE_HINTS, ROLE_LABELS, ROLLEN, type TeamUser } from "@/lib/roles";
+import { areas, areaLabels, ROLE_HINTS, ROLE_LABELS, ROLLEN, type TeamUser } from "@/lib/roles";
 import { FormAlert, SelectField, TextField } from "./fields";
 import { SaveBar } from "./save-bar";
 import { ConfirmButton } from "./confirm-button";
@@ -19,6 +22,7 @@ import { ConfirmButton } from "./confirm-button";
 const leer: FormState = {};
 
 export function NeuerBenutzerForm() {
+  const address = useAnrede();
   const [state, formAction, pending] = useActionState(createUser, leer);
   const feld = state.fieldErrors ?? {};
 
@@ -40,7 +44,7 @@ export function NeuerBenutzerForm() {
           required
           autoComplete="new-password"
           error={feld.password}
-          hint="Mindestens 8 Zeichen. Sagen Sie es der Person persönlich weiter."
+          hint={an(address, "Mindestens 8 Zeichen. Sagen Sie es der Person persönlich weiter.", "Mindestens 8 Zeichen. Sag es der Person persönlich weiter.")}
         />
       </div>
       <SelectField
@@ -77,9 +81,11 @@ export function TeamZeile({
   selbst: boolean;
   letzterOwner: boolean;
 }) {
+  const address = useAnrede();
   const [rolleState, rolleAction] = useActionState(changeUserRole, leer);
   const [loeschState, loeschAction] = useActionState(deleteUser, leer);
   const [pwState, pwAction, pwPending] = useActionState(resetUserPassword, leer);
+  const [accessState, accessAction, accessPending] = useActionState(updateUserAccess, leer);
   const pwFeld = pwState.fieldErrors ?? {};
   const meldung = rolleState.error ?? loeschState.error;
 
@@ -90,7 +96,7 @@ export function TeamZeile({
           <p className="font-medium text-ink">
             {user.username}
             {selbst ? (
-              <span className="ml-2 text-sm font-normal text-ink/50">(Sie)</span>
+              <span className="ml-2 text-sm font-normal text-ink/50">{an(address, "(Sie)", "(du)")}</span>
             ) : null}
           </p>
           <p className="text-sm text-ink/50">{ROLE_HINTS[user.role]}</p>
@@ -138,6 +144,18 @@ export function TeamZeile({
       <div className="mt-3 empty:mt-0">
         <FormAlert state={{ error: meldung }} />
       </div>
+
+      <form action={accessAction} className="mt-4 space-y-3">
+        <input type="hidden" name="userId" value={user.id} />
+        <fieldset disabled={selbst || accessPending} className="space-y-2">
+          <legend className="text-sm font-medium">Zugriff und Bereiche</legend>
+          <label className="flex gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={user.active} /> Zugang aktiv</label>
+          {user.role === "editor" ? areas.map(area => <label key={area} className="flex gap-2 text-sm"><input type="checkbox" name="permissions" value={area} defaultChecked={user.permissions.includes(area)} /> {areaLabels[area]}</label>) : <p className="text-sm text-ink/60">Verantwortliche haben Zugriff auf alle Bereiche.</p>}
+          <button type="submit" className="rounded-full border px-4 py-2 text-sm font-semibold">Zugriff speichern</button>
+        </fieldset>
+        <FormAlert state={accessState} />
+        {accessState.success ? <p className="text-sm">Zugriff gespeichert. Bestehende Sitzungen wurden beendet.</p> : null}
+      </form>
 
       <details className="mt-3">
         <summary className="cursor-pointer text-sm font-medium text-stone-600">

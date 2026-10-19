@@ -1,3 +1,6 @@
+import { PageHeader } from "@/components/admin/page-header";
+import { an } from "@/lib/anrede";
+import { getAdminAnrede } from "@/lib/anrede-server";
 import { requireOwner } from "@/lib/auth";
 import { requireOwnSettings } from "@/lib/tenant";
 import { getAnimalCount } from "@/lib/animals";
@@ -7,6 +10,7 @@ import { IdentitaetForm } from "@/components/admin/verein-forms";
 import { VereinAbschnitt } from "@/components/admin/verein-abschnitt";
 
 export default async function VereinPage() {
+  const address = await getAdminAnrede();
   const { scope } = await requireOwner();
   const settings = await requireOwnSettings(scope);
   // getAnimalCount statt getAnimals().length: die Checkliste braucht die Zahl,
@@ -17,11 +21,11 @@ export default async function VereinPage() {
   const offen = missingRequired(liste);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10"><PageHeader title="Verein" eyebrow="Vereinsdaten" description="Kontaktdaten, Erscheinungsbild und öffentliche Angaben pflegen."/>
       <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
         <h2 className="font-display text-xl font-semibold tracking-tight text-ink">
           {offen.length === 0
-            ? "Ihre Angaben sind vollständig"
+            ? an(address, "Ihre Angaben sind vollständig", "Deine Angaben sind vollständig")
             : `Noch ${offen.length} ${offen.length === 1 ? "Punkt" : "Punkte"} offen`}
         </h2>
         <div className="mt-4">

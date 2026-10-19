@@ -118,3 +118,10 @@ export function themeCss(vars: Record<string, string>): string {
     .join(";");
   return `:root{${body}}`;
 }
+
+export function onColor(hex: string): string {
+  if (!/^#[a-f0-9]{6}$/i.test(hex)) return "#ffffff";
+  const rgb = [1, 3, 5].map(i => srgbToLinear(parseInt(hex.slice(i, i + 2), 16) / 255));
+  const luminance = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  return 1.05 / (luminance + 0.05) >= 4.5 ? "#ffffff" : "#000000";
+}

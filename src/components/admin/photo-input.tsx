@@ -1,118 +1,152 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Camera, X } from "lucide-react";
 import { shrinkImage } from "@/lib/shrink-image";
-import { Rahmen, beschriebenVon, fileClass } from "./fields";
+import { Rahmen, beschriebenVon } from "./fields";
 
-type Vorschau = { url: string; name: string; kb: number };
+type Auswahl = { file: File; url: string };
 
 /**
  * Mehrere Fotos auswaehlen, im Browser verkleinern, in denselben Input
  * zurueckschreiben.
  *
  * accept="image/*" statt der drei MIME-Typen ist Absicht: sonst blendet iOS
- * Teile der Kamerarolle aus, und HEIC waere gar nicht erst waehlbar. Der Server
+ * Teile der Kamerarolle aus, und HEIC waere gar nicht erst waehlbar. Ohne
+ * capture-Attribut bietet das Smartphone Kamera UND Galerie an. Der Server
  * prueft weiterhin streng.
  *
  * Der Rueckweg laeuft ueber DataTransfer und nicht ueber ein selbstgebautes
  * Submit. Nur so bleibt das Formular ein gewoehnliches <form action={...}> mit
  * useActionState, ohne onSubmit-Handler und ohne manuelles startTransition.
+ * Dieselbe Zuweisung erlaubt es, Fotos nacheinander anzuhaengen und einzelne
+ * wieder zu entfernen: der Input haelt immer genau die sichtbare Auswahl. Ein
+ * abgebrochener Dialog aendert input.files in aktuellen Browsern nicht.
  *
  * Drei Rueckfallebenen: schlaegt shrinkImage fehl, geht das Original durch.
- * Laesst sich input.files nicht zuweisen, ebenso. Ist JavaScript ganz aus, ist
- * es ein gewoehnliches Dateifeld. Der Server bleibt in allen Faellen die
- * einzige verbindliche Pruefung.
+ * Laesst sich input.files nicht zuweisen, ersetzt jede Auswahl die vorige und
+ * Entfernen entfaellt. Ist JavaScript ganz aus, ist es ein gewoehnliches
+ * Dateifeld. Der Server bleibt in allen Faellen die einzige verbindliche Pruefung.
  */
 export function PhotoInput({
+  name = "photos",
+  multiple = true,
   label,
   hint,
   error,
   onBusyChange,
+  onPreviewChange,
 }: {
+  name?: string;
+  multiple?: boolean;
   label: string;
   hint?: string;
   error?: string;
   /** Sperrt den Speichern-Knopf, solange umgewandelt wird. */
   onBusyChange?: (busy: boolean) => void;
+  /** Local URLs remain owned and cleaned up by this input. */
+  onPreviewChange?: (urls: string[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [vorschau, setVorschau] = useState<Vorschau[]>([]);
+  const [auswahl, setAuswahl] = useState<Auswahl[]>([]);
+  const [editierbar, setEditierbar] = useState(true);
+  const aktuell = useRef<Auswahl[]>([]);
 
-  // Objekt-URLs freigeben, sonst haelt der Browser jedes Bild im Speicher.
-  useEffect(() => {
-    return () => vorschau.forEach((v) => URL.revokeObjectURL(v.url));
-  }, [vorschau]);
+  // Objekt-URLs erst beim Verlassen freigeben; entfernte Fotos sofort.
+  useEffect(() => () => aktuell.current.forEach((a) => URL.revokeObjectURL(a.url)), []);
+
+  function uebernehmen(next: Auswahl[]) {
+    const input = inputRef.current;
+    let ok = true;
+    if (input) {
+      try {
+        const dt = new DataTransfer();
+        next.forEach((a) => dt.items.add(a.file));
+        input.files = dt.files;
+      } catch {
+        // Zuweisung nicht moeglich: der Input haelt die letzte Originalauswahl.
+        ok = false;
+      }
+    }
+    setEditierbar(ok);
+    const behalten = new Set(next.map((a) => a.url));
+    aktuell.current.filter((a) => !behalten.has(a.url)).forEach((a) => URL.revokeObjectURL(a.url));
+    aktuell.current = next;
+    setAuswahl(next);
+    onPreviewChange?.(next.map((a) => a.url));
+  }
 
   async function onChange() {
     const input = inputRef.current;
-    if (!input?.files || input.files.length === 0) {
-      setVorschau([]);
-      return;
-    }
-    const originale = Array.from(input.files);
+    const neu = Array.from(input?.files ?? []);
+    // Leeres Feld heisst leere Auswahl, wie beim gewoehnlichen Dateifeld.
+    if (neu.length === 0) return uebernehmen([]);
+    const bisher = multiple && editierbar ? aktuell.current : [];
 
     setBusy(true);
     onBusyChange?.(true);
     try {
-      const fertig = await Promise.all(
-        originale.map((f) => shrinkImage(f).catch(() => f)),
-      );
-      try {
-        const dt = new DataTransfer();
-        fertig.forEach((f) => dt.items.add(f));
-        input.files = dt.files;
-      } catch {
-        // Zuweisung nicht moeglich: die Originale bleiben im Feld stehen.
-      }
-      setVorschau(
-        fertig.map((f) => ({
-          url: URL.createObjectURL(f),
-          name: f.name,
-          kb: Math.round(f.size / 1024),
-        })),
-      );
+      const fertig = await Promise.all(neu.map((f) => shrinkImage(f).catch(() => f)));
+      uebernehmen([...bisher, ...fertig.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
     } finally {
       setBusy(false);
       onBusyChange?.(false);
     }
   }
 
-  const basis = { name: "photos", label, error, hint };
+  const basis = { name, label, error, hint };
+  const anhaengen = multiple && auswahl.length > 0;
+  const titel = busy
+    ? "Fotos werden vorbereitet …"
+    : anhaengen
+      ? "Weitere Fotos hinzufügen"
+      : multiple
+        ? "Foto aufnehmen oder auswählen"
+        : "Bild auswählen";
   return (
     <Rahmen {...basis}>
-      <input
-        ref={inputRef}
-        id="photos"
-        name="photos"
-        type="file"
-        multiple
-        accept="image/*"
-        onChange={onChange}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={beschriebenVon(basis)}
-        className={fileClass}
-      />
+      <div className="admin-photo-drop">
+        <span className="admin-photo-drop-icon" aria-hidden="true">
+          <Camera size={24} />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-semibold text-ink">{titel}</span>
+          <span className="mt-0.5 block text-sm text-stone-500">
+            {anhaengen ? `${auswahl.length} ausgewählt` : "Kamera oder Galerie"}
+          </span>
+        </span>
+        <input
+          ref={inputRef}
+          id={name}
+          name={name}
+          type="file"
+          disabled={busy}
+          multiple={multiple}
+          accept="image/*"
+          onChange={onChange}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={beschriebenVon(basis)}
+        />
+      </div>
 
-      {busy ? (
-        <p className="mt-2 text-sm font-medium text-brand-800">
-          Fotos werden vorbereitet …
-        </p>
-      ) : null}
-
-      {vorschau.length > 0 && !busy ? (
-        <div className="mt-3 flex flex-wrap gap-3">
-          {vorschau.map((v) => (
-            <figure key={v.url} className="w-24">
+      {auswahl.length > 0 && !busy ? (
+        <div className="admin-photo-grid">
+          {auswahl.map((a, i) => (
+            <figure key={a.url}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={v.url}
-                alt=""
-                className="h-20 w-24 rounded-lg bg-bone object-cover ring-1 ring-stone-200"
-              />
-              <figcaption className="mt-1 truncate text-xs text-ink/50">
-                {v.kb} KB
-              </figcaption>
+              <img src={a.url} alt={`Ausgewähltes Foto ${i + 1}`} />
+              {multiple && i === 0 ? <span className="admin-photo-cover">Titelbild</span> : null}
+              {editierbar ? (
+                <button
+                  type="button"
+                  className="admin-photo-remove"
+                  aria-label={`Ausgewähltes Foto ${i + 1} entfernen`}
+                  onClick={() => uebernehmen(auswahl.filter((b) => b !== a))}
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              ) : null}
             </figure>
           ))}
         </div>

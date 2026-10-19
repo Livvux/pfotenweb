@@ -1,5 +1,5 @@
+import { hashPassword as betterHash, verifyPassword as betterVerify } from "better-auth/crypto";
 import {
-  randomBytes,
   scrypt as scryptCallback,
   timingSafeEqual,
 } from "node:crypto";
@@ -14,17 +14,19 @@ const scrypt = promisify(scryptCallback) as (
 const KEYLEN = 64;
 
 export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const hash = await scrypt(password.normalize("NFKC"), salt, KEYLEN);
-  return `scrypt:${salt.toString("hex")}:${hash.toString("hex")}`;
+  return betterHash(password.normalize("NFKC"));
 }
 
 export async function verifyPassword(
   password: string,
   stored: string,
 ): Promise<boolean> {
+  if (!stored.startsWith("scrypt:")) {
+    try { return await betterVerify({ password: password.normalize("NFKC"), hash: stored }); }
+    catch { return false; }
+  }
   const [scheme, saltHex, hashHex] = stored.split(":");
-  if (scheme !== "scrypt" || !saltHex || !hashHex) return false;
+  if (scheme !== "scrypt" || !/^[a-f0-9]{32}$/.test(saltHex ?? "") || !/^[a-f0-9]{128}$/.test(hashHex ?? "")) return false;
   const hash = await scrypt(
     password.normalize("NFKC"),
     Buffer.from(saltHex, "hex"),

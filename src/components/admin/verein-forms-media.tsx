@@ -1,5 +1,8 @@
 "use client";
 
+import { an } from "@/lib/anrede";
+import { useAnrede } from "@/components/anrede-provider";
+import { renderMail, mailTemplates } from "@/lib/mail-render";
 import { useActionState, useState } from "react";
 import type { TenantSettings } from "@/lib/tenant";
 import type { FormState } from "@/lib/form";
@@ -108,6 +111,7 @@ export function StartseiteForm({ settings }: { settings: TenantSettings }) {
 }
 
 export function UeberUnsForm({ settings }: { settings: TenantSettings }) {
+  const address = useAnrede();
   const [state, action, pending] = useActionState(updateVereinUeberUns, initial);
   const feld = state.fieldErrors ?? {};
   // Vier feste Zeilen: die Vereinsseite legt die Kennzahlen ohnehin in ein
@@ -142,7 +146,7 @@ export function UeberUnsForm({ settings }: { settings: TenantSettings }) {
       <fieldset>
         <legend className="mb-1 block text-sm font-medium">Kennzahlen</legend>
         <p className="mb-3 text-sm text-ink/50">
-          Vier Zahlen, die Ihren Verein zeigen. Leere Zeilen fallen weg.
+          {an(address, "Vier Zahlen, die Ihren Verein zeigen. Leere Zeilen fallen weg.", "Vier Zahlen, die deinen Verein zeigen. Leere Zeilen fallen weg.")}
         </p>
         <div className="space-y-3">
           {zeilen.map((i) => (
@@ -226,12 +230,14 @@ export function ErscheinungsbildForm({
 }: {
   settings: TenantSettings;
 }) {
+  const address = useAnrede();
   const [state, action, pending] = useActionState(
     updateVereinErscheinungsbild,
     initial,
   );
   const feld = state.fieldErrors ?? {};
   const [primary, setPrimary] = useState(settings.colorPrimary);
+  const [mailTemplate, setMailTemplate] = useState(settings.mailTemplate);
   const [accent, setAccent] = useState(settings.colorAccent);
 
   // buildThemeVars ist eine reine Funktion und laeuft auch im Browser. Dieselbe
@@ -286,10 +292,12 @@ export function ErscheinungsbildForm({
           ))}
         </div>
         <p className="mt-2 text-sm text-ink/50">
-          Aus Ihren beiden Farben entstehen alle Abstufungen der Webseite.
+          {an(address, "Aus Ihren beiden Farben entstehen alle Abstufungen der Webseite.", "Aus deinen beiden Farben entstehen alle Abstufungen der Webseite.")}
         </p>
       </div>
 
+      <label className="grid gap-2">Vereins-Mailvorlage<select name="mailTemplate" value={mailTemplate} onChange={event => { const selected = mailTemplates.find(value => value === event.target.value); if (selected) setMailTemplate(selected); }} className="rounded-xl border p-3">{mailTemplates.map(value => <option key={value} value={value}>{{ klassisch: "Klassisch", farbkopf: "Farbkopf", brief: "Brief" }[value]}</option>)}</select></label>
+      <iframe title="Vorschau der Vereinsmail" sandbox="" srcDoc={renderMail("Vielen Dank für die Nachricht.\n\nDies ist eine Vorschau der Vereins-Mailvorlage.", settings.orgName, mailTemplate, primary)} className="h-80 w-full rounded-xl border" />
       <SaveBar state={state} pending={pending} />
     </form>
   );

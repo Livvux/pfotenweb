@@ -1,10 +1,13 @@
 "use server";
 
+import { mailTemplates } from "@/lib/mail-render";
+import { assertCurrentAccess } from "@/lib/access";
+import { syncWebsiteColors, WebsiteColorConflictError } from "@/lib/website/legacy";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { tenantSettings } from "@/db/schema";
+import { tenantSettings, tenants } from "@/db/schema";
 import { requireOwner } from "@/lib/auth";
 import { text, zodErrorState, type FormState } from "@/lib/form";
 import { deleteFile, saveImage } from "@/lib/storage";
@@ -54,16 +57,22 @@ const hexFarbe = z
   .regex(/^#[0-9a-fA-F]{6}$/, "Bitte eine Farbe im Format #1e4334 angeben.");
 
 /** Teil-UPDATE auf die eigene Zeile. Der Verein steht in der WHERE-Klausel. */
-async function saveSettings(
-  t: TenantScope,
-  values: Partial<typeof tenantSettings.$inferInsert>,
-): Promise<boolean> {
-  const changed = await db
-    .update(tenantSettings)
-    .set({ ...values, updatedAt: new Date() })
-    .where(eq(tenantSettings.tenantId, t.tenantId))
-    .returning({ tenantId: tenantSettings.tenantId });
-  return changed.length > 0;
+async function saveSettings(t: TenantScope, actorId: number, values: Partial<typeof tenantSettings.$inferInsert>): Promise<FormState | null> {
+  return db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, t.tenantId)).for("update");
+    try { await assertCurrentAccess(tx, { id: actorId, scope: t }, "owner"); }
+    catch { return { error: "Der Zugriff wurde inzwischen entzogen. Bitte erneut anmelden." }; }
+    const [current] = await tx.select().from(tenantSettings).where(eq(tenantSettings.tenantId, t.tenantId)).for("update");
+    if (!current) return nichtGefunden;
+    const contentFields = ["heroHeadline", "heroSubline", "heroImageUrl", "aboutIntro", "aboutWork", "aboutSupport", "facts"] as const;
+    if (current.website && contentFields.some(key => key in values && JSON.stringify(values[key]) !== JSON.stringify(current[key])))
+      return { error: "Diese Inhalte werden im Website-Editor gepflegt. Bitte dort den Entwurf bearbeiten und veröffentlichen." };
+    const website = syncWebsiteColors(current.website, values, current);
+    const changedWebsite = JSON.stringify(website) !== JSON.stringify(current.website);
+    await tx.update(tenantSettings).set({ ...values, ...(changedWebsite ? { website, websiteRevision: current.websiteRevision + 1 } : {}), updatedAt: new Date() })
+      .where(eq(tenantSettings.tenantId, t.tenantId));
+    return null;
+  });
 }
 
 /*
@@ -105,22 +114,30 @@ const identitaetSchema = z.object({
       `Bitte ein Jahr zwischen 1800 und ${AKTUELLES_JAHR} angeben.`,
     ),
   tagline: optionalerText(200),
+  visitorAddress: z.enum(["sie", "du"]),
+  adminAddress: z.enum(["sie", "du"]),
+  animationsEnabled: z.boolean(),
 });
 
 export async function updateVereinIdentitaet(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = identitaetSchema.safeParse({
     orgName: text(formData, "orgName"),
     shortName: text(formData, "shortName"),
     legalForm: text(formData, "legalForm"),
     foundedYear: text(formData, "foundedYear"),
     tagline: text(formData, "tagline"),
+    visitorAddress: formData.get("visitorAddress") ?? "sie",
+    adminAddress: formData.get("adminAddress") ?? "sie",
+    animationsEnabled: formData.get("animationsEnabled") === "on",
   });
   if (!parsed.success) return zodErrorState(parsed.error);
-  if (!(await saveSettings(scope, parsed.data))) return nichtGefunden;
+  const saveError = await saveSettings(scope, actor.id, parsed.data);
+  if (saveError) return saveError;
   revalidateSite();
   return gespeichert;
 }
@@ -143,7 +160,8 @@ export async function updateVereinKontakt(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = kontaktSchema.safeParse({
     street: text(formData, "street"),
     postalCode: text(formData, "postalCode"),
@@ -154,7 +172,8 @@ export async function updateVereinKontakt(
     contactNotifyEmail: text(formData, "contactNotifyEmail"),
   });
   if (!parsed.success) return zodErrorState(parsed.error);
-  if (!(await saveSettings(scope, parsed.data))) return nichtGefunden;
+  const saveError = await saveSettings(scope, actor.id, parsed.data);
+  if (saveError) return saveError;
   revalidateSite();
   return gespeichert;
 }
@@ -176,7 +195,8 @@ export async function updateVereinStartseite(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = startseiteSchema.safeParse({
     heroHeadline: text(formData, "heroHeadline"),
     heroSubline: text(formData, "heroSubline"),
@@ -186,13 +206,10 @@ export async function updateVereinStartseite(
   const bild = await bildFeld(scope, formData, "heroImage");
   if (bild.error) return { error: bild.error, fieldErrors: { heroImage: bild.error } };
 
-  if (
-    !(await saveSettings(scope, {
-      ...parsed.data,
-      ...(bild.set !== undefined ? { heroImageUrl: bild.set } : {}),
-    }))
-  ) {
-    return nichtGefunden;
+  const saveError = await saveSettings(scope, actor.id, { ...parsed.data, ...(bild.set !== undefined ? { heroImageUrl: bild.set } : {}) });
+  if (saveError) {
+    if (bild.set) await deleteFile(scope.tenantId, bild.set);
+    return saveError;
   }
   if (bild.aufraeumen) await deleteFile(scope.tenantId, bild.aufraeumen);
   revalidateSite();
@@ -214,7 +231,8 @@ export async function updateVereinImpressum(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = impressumSchema.safeParse({
     representedBy: text(formData, "representedBy"),
     registerCourt: text(formData, "registerCourt"),
@@ -222,7 +240,8 @@ export async function updateVereinImpressum(
     taxNote: text(formData, "taxNote"),
   });
   if (!parsed.success) return zodErrorState(parsed.error);
-  if (!(await saveSettings(scope, parsed.data))) return nichtGefunden;
+  const saveError = await saveSettings(scope, actor.id, parsed.data);
+  if (saveError) return saveError;
   revalidateSite();
   return gespeichert;
 }
@@ -252,7 +271,8 @@ export async function updateVereinUeberUns(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = ueberUnsSchema.safeParse({
     aboutIntro: text(formData, "aboutIntro"),
     aboutWork: text(formData, "aboutWork"),
@@ -260,14 +280,8 @@ export async function updateVereinUeberUns(
   });
   if (!parsed.success) return zodErrorState(parsed.error);
   const facts = factsAus(formData);
-  if (
-    !(await saveSettings(scope, {
-      ...parsed.data,
-      facts: facts.length > 0 ? facts : null,
-    }))
-  ) {
-    return nichtGefunden;
-  }
+  const saveError = await saveSettings(scope, actor.id, { ...parsed.data, facts: facts.length > 0 ? facts : null });
+  if (saveError) return saveError;
   revalidateSite();
   return gespeichert;
 }
@@ -279,29 +293,32 @@ export async function updateVereinUeberUns(
 const erscheinungSchema = z.object({
   colorPrimary: hexFarbe,
   colorAccent: hexFarbe,
+  mailTemplate: z.enum(mailTemplates),
 });
 
 export async function updateVereinErscheinungsbild(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = erscheinungSchema.safeParse({
     colorPrimary: text(formData, "colorPrimary"),
     colorAccent: text(formData, "colorAccent"),
+    mailTemplate: formData.get("mailTemplate") ?? "klassisch",
   });
   if (!parsed.success) return zodErrorState(parsed.error);
 
   const bild = await bildFeld(scope, formData, "logo");
   if (bild.error) return { error: bild.error, fieldErrors: { logo: bild.error } };
 
-  if (
-    !(await saveSettings(scope, {
-      ...parsed.data,
-      ...(bild.set !== undefined ? { logoUrl: bild.set } : {}),
-    }))
-  ) {
-    return nichtGefunden;
+  try {
+    const saveError = await saveSettings(scope, actor.id, { ...parsed.data, ...(bild.set !== undefined ? { logoUrl: bild.set } : {}) });
+    if (saveError) { if (bild.set) await deleteFile(scope.tenantId, bild.set); return saveError; }
+  } catch (error) {
+    if (bild.set) await deleteFile(scope.tenantId, bild.set);
+    if (error instanceof WebsiteColorConflictError) return { error: error.message };
+    throw error;
   }
   if (bild.aufraeumen) await deleteFile(scope.tenantId, bild.aufraeumen);
   revalidateSite();

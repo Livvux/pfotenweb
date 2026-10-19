@@ -1,3 +1,6 @@
+import { PageRenderer } from "@/components/website/renderer";
+import { websiteContent } from "@/lib/website/content";
+import { an, parseAnrede } from "@/lib/anrede";
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -17,11 +20,14 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const { settings, scope } = await requireTenantWithSettings();
+  const site = settings.website?.published;
+  const page = site?.pages.find(p => p.slug === "home");
+  if (site && page) return <main><PageRenderer site={site} page={page} content={await websiteContent(scope)} anrede={parseAnrede(settings.visitorAddress)}/></main>;
   const [animals, posts] = await Promise.all([
-    getAnimals(scope, { status: "vermittelbar" }),
+    getAnimals(scope, { status: "vermittelbar", limit: 3, coverOnly: true }),
     getPublishedPosts(scope, 2),
   ]);
-  const featured = animals.slice(0, 3);
+  const featured = animals;
 
   return (
     <main>
@@ -135,7 +141,7 @@ export default async function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-16 md:flex-row md:items-center md:justify-between md:py-20">
           <div>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
-              Ihr Einsatz wird dringend gebraucht.
+              {an(parseAnrede(settings.visitorAddress), "Ihr Einsatz wird dringend gebraucht.", "Dein Einsatz wird dringend gebraucht.")}
             </h2>
             <p className="mt-2 max-w-xl leading-relaxed text-brand-100">
               Als Verein leben wir allein von Spenden. Jeder Beitrag zahlt

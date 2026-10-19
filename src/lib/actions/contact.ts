@@ -70,6 +70,8 @@ export async function contactAction(
     message,
     animalId,
     orgName: settings?.orgName,
+    template: settings?.mailTemplate,
+    color: settings?.colorPrimary,
     notifyEmail: settings?.contactNotifyEmail ?? settings?.publicEmail ?? undefined,
   }).catch(
     (err) => console.error("Kontaktformular: Mail-Versand fehlgeschlagen", err),

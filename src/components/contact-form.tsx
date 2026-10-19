@@ -1,5 +1,7 @@
 "use client";
 
+import { useAnrede } from "./anrede-provider";
+import { an } from "@/lib/anrede";
 import { useActionState } from "react";
 import { contactAction, type ContactState } from "@/lib/actions/contact";
 
@@ -12,17 +14,17 @@ export function ContactForm({
   subject?: string;
   animalId?: number;
 }) {
+  const address = useAnrede();
   const [state, formAction, pending] = useActionState(contactAction, initial);
 
   if (state.success) {
     return (
       <div className="rounded-3xl bg-brand-50 p-8 ring-1 ring-brand-100">
         <h2 className="font-display text-xl font-semibold text-brand-900">
-          Danke für Ihre Nachricht!
+          {an(address, "Danke für Ihre Nachricht!", "Danke für deine Nachricht!")}
         </h2>
         <p className="mt-2 leading-relaxed text-ink/70">
-          Wir haben Ihre Anfrage erhalten und melden uns so schnell wie
-          möglich – meistens innerhalb von zwei Tagen.
+          {an(address, "Wir haben Ihre Anfrage erhalten und melden uns so schnell wie möglich.", "Wir haben deine Anfrage erhalten und melden uns so schnell wie möglich.")}
         </p>
       </div>
     );
@@ -69,17 +71,7 @@ export function ContactForm({
           />
         </div>
       </div>
-      <div>
-        <label htmlFor="subject" className="mb-1 block text-sm font-medium">
-          Betreff
-        </label>
-        <input
-          id="subject"
-          name="subject"
-          defaultValue={subject}
-          className="w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-600/20"
-        />
-      </div>
+      {subject ? <><input type="hidden" name="subject" value={subject} /><p className="rounded-xl bg-brand-50 p-3 text-sm">{subject}</p></> : null}
       <div>
         <label htmlFor="message" className="mb-1 block text-sm font-medium">
           Nachricht *
@@ -105,9 +97,7 @@ export function ContactForm({
         {pending ? "Wird gesendet …" : "Nachricht senden"}
       </button>
       <p className="text-xs leading-relaxed text-ink/50">
-        Mit dem Absenden erklären Sie sich damit einverstanden, dass wir Ihre
-        Angaben zur Bearbeitung der Anfrage speichern. Details in unserer
-        Datenschutzerklärung.
+        {an(address, "Mit dem Absenden erklären Sie sich damit einverstanden, dass wir Ihre Angaben zur Bearbeitung der Anfrage speichern. Details in unserer Datenschutzerklärung.", "Mit dem Absenden erklärst du dich damit einverstanden, dass wir deine Angaben zur Bearbeitung der Anfrage speichern. Details in unserer Datenschutzerklärung.")}
       </p>
     </form>
   );

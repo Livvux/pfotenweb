@@ -19,7 +19,7 @@ export function AnimalCard({ animal }: { animal: AnimalWithImages }) {
   return (
     <Link
       href={`/tiere/${animal.slug}`}
-      className="group block overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-brand-100 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-950/10"
+      className="pw-animal-card group block overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-brand-100 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-brand-950/10"
     >
       <div className="relative aspect-[4/3] bg-bone">
         {cover ? (

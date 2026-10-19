@@ -1,3 +1,6 @@
+import { InvitationForm } from "@/components/security-forms";
+import { an } from "@/lib/anrede";
+import { getAdminAnrede } from "@/lib/anrede-server";
 import { requireOwner } from "@/lib/auth";
 import { countOwners, listUsers } from "@/lib/users";
 import {
@@ -7,6 +10,7 @@ import {
 } from "@/components/admin/team-forms";
 
 export default async function TeamPage() {
+  const address = await getAdminAnrede();
   const eigen = await requireOwner();
   const [team, ownerZahl] = await Promise.all([
     listUsers(eigen.scope),
@@ -19,9 +23,7 @@ export default async function TeamPage() {
         Zugänge
       </h1>
       <p className="mt-2 text-ink/60">
-        Wer darf die Seite pflegen? Legen Sie für jede Person einen eigenen
-        Zugang an, statt ein Passwort weiterzugeben. So sehen Sie, wer arbeitet,
-        und können einen Zugang einzeln entfernen.
+        {an(address, "Wer darf die Seite pflegen? Legen Sie für jede Person einen eigenen Zugang an, statt ein Passwort weiterzugeben. So sehen Sie, wer arbeitet, und können einen Zugang einzeln entfernen.", "Wer darf die Seite pflegen? Lege für jede Person einen eigenen Zugang an, statt ein Passwort weiterzugeben. So siehst du, wer arbeitet, und kannst einen Zugang einzeln entfernen.")}
       </p>
 
       <ul className="mt-6 divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200">
@@ -38,6 +40,7 @@ export default async function TeamPage() {
         ))}
       </ul>
 
+      <section className="mt-10 rounded-2xl bg-white p-6 ring-1 ring-stone-200"><h2 className="mb-5 font-display text-xl">Teammitglied per E-Mail einladen</h2><InvitationForm/></section>
       <section className="mt-10 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-200 md:p-8">
         <h2 className="font-display text-xl font-semibold text-ink">
           Neuen Zugang anlegen

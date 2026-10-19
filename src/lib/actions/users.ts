@@ -1,10 +1,12 @@
 "use server";
 
+import { assertCurrentAccess, assertFreshAuthentication } from "@/lib/access";
+
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { sessions, users } from "@/db/schema";
+import { tenants, authSessions as sessions, users } from "@/db/schema";
 import { requireAdmin, requireOwner } from "@/lib/auth";
 import {
   idSchema,
@@ -14,7 +16,9 @@ import {
   type FormState,
 } from "@/lib/form";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { createCredentialUser, credentialHash, setCredentialHash } from "@/lib/auth-users";
 import { countOwners } from "@/lib/users";
+import { areas } from "@/lib/roles";
 
 
 /*
@@ -46,7 +50,8 @@ export async function createUser(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = z
     .object({ username: benutzername, password: passwort, role: rolle })
     .safeParse({
@@ -56,12 +61,18 @@ export async function createUser(
     });
   if (!parsed.success) return zodErrorState(parsed.error);
 
+  const passwordHash = await hashPassword(parsed.data.password);
   try {
-    await db.insert(users).values({
+    await db.transaction(async tx => {
+      await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+      await assertCurrentAccess(tx, actor, "owner");
+      await assertFreshAuthentication(tx, actor);
+      await createCredentialUser(tx, {
       tenantId: scope.tenantId,
       username: parsed.data.username,
-      passwordHash: await hashPassword(parsed.data.password),
+      passwordHash,
       role: parsed.data.role,
+      });
     });
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -93,6 +104,9 @@ export async function changeUserRole(
   }
 
   const fehler = await db.transaction(async (tx) => {
+    await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, eigen.scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, eigen, "owner");
+    await assertFreshAuthentication(tx, eigen);
     // Zaehlung und UPDATE in derselben Transaktion: sonst stufen zwei
     // gleichzeitige Klicks beide verbliebenen Verantwortlichen herab.
     if (parsed.data.role === "editor") {
@@ -118,11 +132,35 @@ export async function changeUserRole(
   return { success: true };
 }
 
+export async function updateUserAccess(_prev: FormState, formData: FormData): Promise<FormState> {
+  const actor = await requireOwner();
+  const parsed = z.object({ userId: idSchema, permissions: z.array(z.enum(areas)), active: z.boolean() }).safeParse({
+    userId: formData.get("userId"), permissions: formData.getAll("permissions"), active: formData.get("active") === "on",
+  });
+  if (!parsed.success) return zodErrorState(parsed.error);
+  if (parsed.data.userId === actor.id) return { error: "Die eigenen Zugriffsrechte lassen sich hier nicht ändern." };
+  const error = await db.transaction(async tx => {
+    await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, actor.scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "owner");
+    await assertFreshAuthentication(tx, actor);
+    const [target] = await tx.select().from(users).where(and(eq(users.id, parsed.data.userId), eq(users.tenantId, actor.scope.tenantId))).for("update");
+    if (!target) return "Benutzer nicht gefunden.";
+    if (!parsed.data.active && target.role === "owner" && await countOwners(actor.scope, target.id, tx) === 0) return "Der letzte verantwortliche Zugang muss aktiv bleiben.";
+    await tx.update(users).set({ active: parsed.data.active, permissions: [...new Set(parsed.data.permissions)] }).where(eq(users.id, target.id));
+    await tx.delete(sessions).where(eq(sessions.userId, target.id));
+    return null;
+  });
+  if (error) return { error };
+  revalidatePath("/admin/team");
+  return { success: true };
+}
+
 export async function resetUserPassword(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const { scope } = await requireOwner();
+  const actor = await requireOwner();
+  const { scope } = actor;
   const parsed = z
     .object({ userId: idSchema, password: passwort })
     .safeParse({
@@ -131,18 +169,17 @@ export async function resetUserPassword(
     });
   if (!parsed.success) return zodErrorState(parsed.error);
 
-  const changed = await db
-    .update(users)
-    .set({ passwordHash: await hashPassword(parsed.data.password) })
-    .where(
-      and(eq(users.tenantId, scope.tenantId), eq(users.id, parsed.data.userId)),
-    )
-    .returning({ id: users.id });
-  if (changed.length === 0) return { error: "Benutzer nicht gefunden." };
-
-  // Alle Sitzungen beenden. Ohne das bleibt jemand, dessen Passwort gerade
-  // zurueckgesetzt wurde, noch bis zu 30 Tage angemeldet.
-  await db.delete(sessions).where(eq(sessions.userId, parsed.data.userId));
+  const passwordHash = await hashPassword(parsed.data.password);
+  const changed = await db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "owner");
+    await assertFreshAuthentication(tx, actor);
+    const rows = await tx.select({ id: users.id }).from(users).where(and(eq(users.tenantId, scope.tenantId), eq(users.id, parsed.data.userId)));
+    if (rows.length) await setCredentialHash(tx, parsed.data.userId, passwordHash);
+    await tx.delete(sessions).where(eq(sessions.userId, parsed.data.userId));
+    return rows;
+  });
+  if (!changed.length) return { error: "Benutzer nicht gefunden." };
 
   revalidatePath("/admin/team");
   return { success: true };
@@ -163,6 +200,9 @@ export async function deleteUser(
   }
 
   const fehler = await db.transaction(async (tx) => {
+    await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, eigen.scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, eigen, "owner");
+    await assertFreshAuthentication(tx, eigen);
     if ((await countOwners(eigen.scope, parsed.data.userId, tx)) === 0) {
       return "Der letzte verantwortliche Zugang kann nicht gelöscht werden.";
     }
@@ -201,23 +241,20 @@ export async function changeOwnPassword(
     });
   if (!parsed.success) return zodErrorState(parsed.error);
 
-  const [row] = await db
-    .select({ passwordHash: users.passwordHash })
-    .from(users)
-    .where(
-      and(eq(users.tenantId, eigen.scope.tenantId), eq(users.id, eigen.id)),
-    );
-  if (!row || !(await verifyPassword(parsed.data.current, row.passwordHash))) {
-    const meldung = "Das aktuelle Passwort stimmt nicht.";
-    return { error: meldung, fieldErrors: { current: meldung } };
+  const hash = await credentialHash(eigen.id);
+  if (!hash || !(await verifyPassword(parsed.data.current, hash))) {
+    const error = "Das aktuelle Passwort stimmt nicht.";
+    return { error, fieldErrors: { current: error } };
   }
-
-  await db
-    .update(users)
-    .set({ passwordHash: await hashPassword(parsed.data.password) })
-    .where(
-      and(eq(users.tenantId, eigen.scope.tenantId), eq(users.id, eigen.id)),
-    );
+  const newHash = await hashPassword(parsed.data.password);
+  await db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, eigen.scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, eigen, "self");
+    const latest = await credentialHash(eigen.id, tx);
+    if (latest !== hash) throw new Error("Das Passwort wurde inzwischen geändert. Bitte erneut anmelden.");
+    await setCredentialHash(tx, eigen.id, newHash);
+    await tx.delete(sessions).where(and(eq(sessions.userId, eigen.id), ne(sessions.id, eigen.sessionId)));
+  });
 
   // Die eigene Sitzung bleibt bestehen, sonst fliegt man beim Passwortwechsel
   // aus der Verwaltung.

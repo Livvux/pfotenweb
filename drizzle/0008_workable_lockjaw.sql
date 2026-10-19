@@ -1,0 +1,1 @@
+ALTER TABLE "association_settings" ADD COLUMN "mail_template" varchar(16) DEFAULT 'klassisch' NOT NULL;

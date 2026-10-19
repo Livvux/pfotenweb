@@ -1,14 +1,16 @@
 import { constants } from "node:fs";
-import { createHash, randomBytes } from "node:crypto";
-import { chmod, copyFile, mkdir, mkdtemp, realpath, readFile, rm } from "node:fs/promises";
+import { randomUUID, createHash, randomBytes } from "node:crypto";
+import { chmod, copyFile, mkdir, mkdtemp, realpath, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { list, extract } from "tar";
 import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { animals, animalImages, posts, inquiries, tenantSettings, tenants } from "@/db/schema";
+import { animals, animalImages, posts, inquiries, inquiryReplies, tenantSettings, tenants, donationSettings, users } from "@/db/schema";
 import { compatibleImport } from "./import-compatibility";
-import { publicRoot } from "./storage";
+import { mapStateMedia, stateMediaRefs } from "./website/schema";
+import { normalizeUploadImage } from "./upload-image";
+import { publicRoot, privateMediaStorage } from "./storage";
 
 /** Offline import into a fresh installation; production app must be stopped. */
 export async function importData(file: string, tenantId: number): Promise<{ additional: string[]; sourceArchive: string | null }> {
@@ -30,13 +32,28 @@ export async function importData(file: string, tenantId: number): Promise<{ addi
     await extract({ file, cwd: stage, strict: true, noChmod: true, noMtime: true, filter: (name) => seen.has(name) });
     const compatible = compatibleImport(JSON.parse(await readFile(path.join(stage, "manifest.json"), "utf8")));
     const { data } = compatible;
+    const existingUsers = await db.select({ username: users.username }).from(users).where(eq(users.tenantId, tenantId));
+    const usernames = new Set(existingUsers.map(user => user.username));
+    if (data.profiles.some(profile => !usernames.has(profile.username))) compatible.additional.push("profiles (nicht vorhandene Konten)");
+    data.profiles = data.profiles.filter(profile => usernames.has(profile.username));
+    const usedMedia = new Set([data.settings.logoUrl, data.settings.heroImageUrl, ...data.images.map(image => image.url), ...stateMediaRefs(data.settings.website), ...data.settings.websiteMedia.map(image => image.url), ...data.profiles.map(profile => profile.avatar)]);
+    data.files = data.files.filter(file => usedMedia.has(`images/${file.name}`));
+    if (data.profiles.some(profile => profile.avatar) && !await privateMediaStorage()) throw new Error("Private Profilbilder benötigen UPLOAD_DIR außerhalb von public.");
+    if ((data.settings.website || data.settings.websiteMedia.length) && !await privateMediaStorage())
+      throw new Error("Private Website-Entwürfe benötigen UPLOAD_DIR außerhalb von public.");
     const files = new Map<string, string>();
+    const normalizedDir = path.join(stage, "normalized");
+    await mkdir(normalizedDir, { mode: 0o700 });
     const importedFiles = new Set(data.files.map(file => file.name));
     for (const image of compatible.files) {
       const source = path.join(stage, "images", image.name);
       const bytes = await readFile(source);
       if (bytes.length !== image.bytes || createHash("sha256").update(bytes).digest("hex") !== image.sha256) throw new Error("Bild-Prüfsumme stimmt nicht.");
-      if (importedFiles.has(image.name)) files.set(`images/${image.name}`, `${randomBytes(12).toString("hex")}${path.extname(image.name)}`);
+      if (importedFiles.has(image.name)) {
+        const sourceName = `images/${image.name}`;
+        await writeFile(path.join(normalizedDir, image.name), await normalizeUploadImage(bytes, path.extname(image.name)), { mode: 0o600 });
+        files.set(sourceName, `${randomBytes(12).toString("hex")}${path.extname(image.name)}`);
+      }
     }
     if (seen.size !== compatible.files.length + 2) throw new Error("Archiv enthält nicht zugeordnete Dateien.");
     if (compatible.additional.length) {
@@ -74,7 +91,7 @@ export async function importData(file: string, tenantId: number): Promise<{ addi
       for (const [source, name] of files) {
         const target = path.join(targetDir, name);
         copied.push(target);
-        await copyFile(path.join(stage, source), target);
+        await copyFile(path.join(normalizedDir, path.basename(source)), target, constants.COPYFILE_EXCL);
       }
       const ids = new Map<number, number>();
       for (const original of data.animals) {
@@ -95,14 +112,29 @@ export async function importData(file: string, tenantId: number): Promise<{ addi
         void _id;
         await tx.insert(posts).values({ ...values, tenantId });
       }
+      const inquiryIds = new Map<number, number>();
       for (const original of data.inquiries) {
+        if (inquiryIds.has(original.id)) throw new Error("Doppelte Anfrage-ID.");
         const { id: _id, animalId, ...values } = original;
         void _id;
         const mapped = animalId === null ? null : ids.get(animalId);
         if (mapped === undefined) throw new Error("Anfrage verweist auf fehlendes Tier.");
-        await tx.insert(inquiries).values({ ...values, tenantId, animalId: mapped });
+        const [inserted] = await tx.insert(inquiries).values({ ...values, tenantId, animalId: mapped }).returning({ id: inquiries.id });
+        inquiryIds.set(_id, inserted.id);
       }
-      await tx.update(tenantSettings).set({ ...data.settings, logoUrl: imageUrl(data.settings.logoUrl), heroImageUrl: imageUrl(data.settings.heroImageUrl) }).where(eq(tenantSettings.tenantId, tenantId));
+      for (const reply of data.inquiryReplies) {
+        const { id: _id, inquiryId, ...values } = reply; void _id;
+        const mapped = inquiryIds.get(inquiryId);
+        if (!mapped) throw new Error("Antwort verweist auf fehlende Anfrage.");
+        await tx.insert(inquiryReplies).values({ ...values, tenantId, inquiryId: mapped, requestId: randomUUID(), deliveryStatus: "imported" });
+      }
+      for (const profile of data.profiles) {
+        const [account] = await tx.select({ id: users.id }).from(users).where(eq(users.username, profile.username)).for("update");
+        if (!account) throw new Error("Ein zugeordnetes Profilkonto wurde inzwischen entfernt.");
+        await tx.update(users).set({ displayName: profile.displayName, profileRole: profile.teamTitle, bio: profile.bio, profileImage: imageUrl(profile.avatar), updatedAt: new Date() }).where(eq(users.id, account.id));
+      }
+      if (data.donations) await tx.insert(donationSettings).values({ ...data.donations, tenantId }).onConflictDoUpdate({ target: donationSettings.tenantId, set: { ...data.donations, updatedAt: new Date() } });
+      await tx.update(tenantSettings).set({ ...data.settings, logoUrl: imageUrl(data.settings.logoUrl), heroImageUrl: imageUrl(data.settings.heroImageUrl), website: await mapStateMedia(data.settings.website, async url => imageUrl(url)!), websiteRevision: 0, websiteMedia: data.settings.websiteMedia.map(image => ({ ...image, url: imageUrl(image.url)! })) }).where(eq(tenantSettings.tenantId, tenantId));
     });
     return { additional: compatible.additional, sourceArchive };
   } catch (error) {

@@ -1,0 +1,1 @@
+ALTER TABLE "association_settings" ADD COLUMN "location" jsonb;

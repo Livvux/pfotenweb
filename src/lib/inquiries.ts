@@ -15,7 +15,7 @@ export type InquiryRow = { inquiry: Inquiry; animalName: string | null };
  * kostet nichts und haelt die Abfrage auch dann korrekt, wenn das Schema
  * einmal anders aussieht.
  */
-export async function getInquiries(t: TenantScope): Promise<InquiryRow[]> {
+export async function getInquiries(t: TenantScope, filter: "all" | "open" | "done" = "all", offset = 0): Promise<InquiryRow[]> {
   return db
     .select({ inquiry: inquiries, animalName: animals.name })
     .from(inquiries)
@@ -26,8 +26,8 @@ export async function getInquiries(t: TenantScope): Promise<InquiryRow[]> {
         eq(animals.tenantId, t.tenantId),
       ),
     )
-    .where(eq(inquiries.tenantId, t.tenantId))
-    .orderBy(desc(inquiries.createdAt));
+    .where(and(eq(inquiries.tenantId, t.tenantId), filter === "open" ? isNull(inquiries.resolvedAt) : filter === "done" ? sql`${inquiries.resolvedAt} is not null` : undefined))
+    .orderBy(desc(inquiries.createdAt), desc(inquiries.id)).limit(24).offset(offset);
 }
 
 export type DashboardStats = {
@@ -94,4 +94,9 @@ export async function getDashboardStats(
     openInquiries: openInquiries.open,
     latestInquiries,
   };
+}
+
+export async function getInquiryCounts(t: TenantScope) {
+  const [row] = await db.select({ open: sql<number>`count(*) filter (where ${inquiries.resolvedAt} is null)::int`, done: sql<number>`count(*) filter (where ${inquiries.resolvedAt} is not null)::int` }).from(inquiries).where(eq(inquiries.tenantId, t.tenantId));
+  return row;
 }

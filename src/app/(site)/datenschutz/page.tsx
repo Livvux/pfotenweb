@@ -1,3 +1,4 @@
+import { an, parseAnrede } from "@/lib/anrede";
 import type { Metadata } from "next";
 import {
   addressLines,
@@ -31,7 +32,7 @@ const buildSections = (settings: TenantSettings) => [
   },
   {
     title: "2. Erreichbarkeit per Kontaktformular",
-    body: "Wenn Sie uns über das Kontaktformular eine Anfrage senden, verarbeiten wir Ihre Angaben (Name, E-Mail-Adresse und Nachricht) ausschließlich zur Bearbeitung Ihrer Anfrage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO. Die Daten werden gelöscht, sobald sie für den Zweck nicht mehr erforderlich sind und keine gesetzlichen Aufbewahrungspflichten bestehen.",
+    body: an(parseAnrede(settings.visitorAddress), "Wenn Sie uns über das Kontaktformular eine Anfrage senden, verarbeiten wir Ihre Angaben (Name, E-Mail-Adresse und Nachricht) ausschließlich zur Bearbeitung Ihrer Anfrage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO. Die Daten werden gelöscht, sobald sie für den Zweck nicht mehr erforderlich sind und keine gesetzlichen Aufbewahrungspflichten bestehen.", "Wenn du uns über das Kontaktformular eine Anfrage sendest, verarbeiten wir deine Angaben (Name, E-Mail-Adresse und Nachricht) ausschließlich zur Bearbeitung deiner Anfrage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO. Die Daten werden gelöscht, sobald sie für den Zweck nicht mehr erforderlich sind und keine gesetzlichen Aufbewahrungspflichten bestehen."),
   },
   {
     title: "3. Hosting und Server-Logfiles",
@@ -39,11 +40,11 @@ const buildSections = (settings: TenantSettings) => [
   },
   {
     title: "4. Cookies",
-    body: "Diese Website verwendet technisch notwendige Cookies nur für den geschlossenen Vereinsbereich (Anmeldung der Verwaltung). Es findet kein Tracking statt; Einwilligungsbanner sind daher nicht erforderlich.",
+    body: "Diese Website verwendet technisch notwendige Cookies nur für den geschlossenen Vereinsbereich (Anmeldung der Verwaltung). Die Software setzt keine Analyse- oder Werbecookies. Eine externe Standortkarte wird erst nach Klick geladen.",
   },
   {
-    title: "5. Ihre Rechte",
-    body: "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Zudem können Sie sich bei einer Datenschutz-Aufsichtsbehörde beschweren.",
+    title: an(parseAnrede(settings.visitorAddress), "5. Ihre Rechte", "5. Deine Rechte"),
+    body: an(parseAnrede(settings.visitorAddress), "Sie haben das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Zudem können Sie sich bei einer Datenschutz-Aufsichtsbehörde beschweren.", "Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Zudem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren."),
   },
 ];
 
@@ -63,7 +64,8 @@ export default async function DatenschutzPage() {
             <p className="mt-2">{s.body}</p>
           </section>
         ))}
-        <p className="text-sm text-ink/50">Stand: August 2026</p>
+        {settings.location?.enabled ? <section><h2 className="font-semibold text-brand-900">Standortkarte</h2><p className="mt-2">Die Karte auf der Kontaktseite wird erst nach Klick von OpenStreetMap geladen. Dabei werden die IP-Adresse und technische Browserdaten an den Kartenanbieter übertragen. Ohne Laden der Karte bleiben Besuchsadresse und Navigationslinks nutzbar. <a className="underline" href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener noreferrer">Datenschutzhinweise der OpenStreetMap Foundation</a></p></section> : null}
+        <p className="text-sm text-ink/50">Stand: Oktober 2026</p>
       </div>
     </main>
   );

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PageHeader, StatCard } from "@/components/admin/page-header";
+import { canAccess } from "@/lib/roles";
 import { requireAdmin } from "@/lib/auth";
 import { getDashboardStats } from "@/lib/inquiries";
 import { getSettings } from "@/lib/tenant";
@@ -6,7 +8,9 @@ import { isReadyForReview, settingsChecklist } from "@/lib/settings-status";
 import { SetupChecklist } from "@/components/admin/setup-checklist";
 
 export default async function AdminDashboardPage() {
-  const { scope, role } = await requireAdmin();
+  const user = await requireAdmin();
+  const { scope, role } = user;
+  const inquiriesAllowed = canAccess(user, "inquiries");
   const stats = await getDashboardStats(scope);
   const latest = stats.latestInquiries;
 
@@ -23,15 +27,14 @@ export default async function AdminDashboardPage() {
     liste.length > 0 && !isReadyForReview(liste);
 
   const cards = [
-    { label: "Tiere insgesamt", value: stats.animalsTotal },
-    { label: "davon vermittelbar", value: stats.animalsAvailable },
-    { label: "News-Beiträge", value: stats.postsTotal },
-    { label: "Offene Anfragen", value: stats.openInquiries },
+    ...(canAccess(user, "animals") ? [{ label: "Tiere insgesamt", value: stats.animalsTotal, href: "/admin/tiere" }, { label: "davon vermittelbar", value: stats.animalsAvailable, href: "/admin/tiere?status=vermittelbar" }] : []),
+    ...(canAccess(user, "posts") ? [{ label: "News-Beiträge", value: stats.postsTotal, href: "/admin/aktuelles" }] : []),
+    ...(inquiriesAllowed ? [{ label: "Offene Anfragen", value: stats.openInquiries, href: "/admin/anfragen" }] : []),
   ];
 
   return (
     <div className="space-y-8">
-      <h1 className="font-serif text-3xl text-stone-900">Guten Tag!</h1>
+      <PageHeader title="Guten Tag!" eyebrow={settings?.shortName ?? "Vereinsverwaltung"} description="Einrichtungsstand und aktuelle Aufgaben im Überblick."/>
 
       {zeigeCheckliste ? (
         <SetupChecklist
@@ -40,18 +43,10 @@ export default async function AdminDashboardPage() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200"
-          >
-            <p className="font-serif text-4xl text-brand-800">{card.value}</p>
-            <p className="mt-1 text-sm text-stone-500">{card.label}</p>
-          </div>
-        ))}
+        {cards.map(card => <StatCard key={card.label} {...card}/>)}
       </div>
 
-      <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
+      {inquiriesAllowed ? <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-xl text-stone-900">
             Neueste offene Anfragen
@@ -77,7 +72,7 @@ export default async function AdminDashboardPage() {
             ))}
           </ul>
         )}
-      </section>
+      </section> : null}
     </div>
   );
 }

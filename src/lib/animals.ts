@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { animalImages, animals } from "@/db/schema";
 import type { TenantScope } from "@/lib/tenant";
@@ -8,51 +8,50 @@ export type Animal = typeof animals.$inferSelect;
 export type AnimalImage = typeof animalImages.$inferSelect;
 export type AnimalWithImages = Animal & { images: AnimalImage[] };
 
-export const SPECIES_LABELS: Record<Animal["species"], string> = {
-  hund: "Hund",
-  katze: "Katze",
-  kleintier: "Kleintier",
-  vogel: "Vogel",
-  sonstiges: "Sonstiges",
+export { SPECIES_LABELS, STATUS_LABELS, ageText } from "./animal-display";
+
+export type AnimalFilters = {
+  species?: Animal["species"];
+  status?: Animal["status"];
+  sex?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+  coverOnly?: boolean;
 };
-
-export const STATUS_LABELS: Record<Animal["status"], string> = {
-  vermittelbar: "Vermittelbar",
-  reserviert: "Reserviert",
-  vermittelt: "Vermittelt",
-};
-
-export function ageText(animal: Animal): string {
-  if (!animal.birthYear) return "";
-  const years = new Date().getFullYear() - animal.birthYear;
-  if (years <= 0) return "Jungtier";
-  return `${years} ${years === 1 ? "Jahr" : "Jahre"}`;
-}
-
-export async function getAnimals(
-  t: TenantScope,
-  filters?: {
-    species?: Animal["species"];
-    status?: Animal["status"];
-  },
-): Promise<AnimalWithImages[]> {
+function animalConditions(t: TenantScope, filters?: AnimalFilters) {
   const conditions = [eq(animals.tenantId, t.tenantId)];
   if (filters?.species) conditions.push(eq(animals.species, filters.species));
   if (filters?.status) conditions.push(eq(animals.status, filters.status));
+  if (filters?.sex) conditions.push(eq(animals.sex, filters.sex));
+  for (const word of (filters?.q ?? "").trim().slice(0, 120).split(/\s+/).filter(Boolean)) {
+    const pattern = `%${word.replace(/[\\%_]/g, "\\$&")}%`;
+    conditions.push(sql`concat_ws(' ', ${animals.name}, ${animals.breed}, ${animals.description}, ${animals.species}) ilike ${pattern}`);
+  }
+  return and(...conditions);
+}
+export async function countAnimals(t: TenantScope, filters?: AnimalFilters): Promise<number> {
+  const [row] = await db.select({ n: count() }).from(animals).where(animalConditions(t, filters));
+  return row.n;
+}
+export async function getAnimals(
+  t: TenantScope,
+  filters?: AnimalFilters,
+): Promise<AnimalWithImages[]> {
 
   const rows = await db
     .select()
     .from(animals)
-    .where(and(...conditions))
-    .orderBy(desc(animals.featured), desc(animals.createdAt));
+    .where(animalConditions(t, filters))
+    .orderBy(desc(animals.featured), desc(animals.createdAt), desc(animals.id))
+    .limit(filters?.limit ?? 100000).offset(filters?.offset ?? 0);
 
   if (rows.length === 0) return [];
 
   // Frueher wurden hier ALLE Bilder ohne Filter geladen. Jetzt nur die Bilder
   // der tatsaechlich ausgewaehlten Tiere: bei einer Artfilterung holt das nicht
   // laenger den gesamten Bestand des Vereins mit.
-  const images = await db
-    .select()
+  const images = await (filters?.coverOnly ? db.selectDistinctOn([animalImages.animalId]) : db.select())
     .from(animalImages)
     .where(
       and(
@@ -63,7 +62,7 @@ export async function getAnimals(
         ),
       ),
     )
-    .orderBy(asc(animalImages.sortOrder));
+    .orderBy(asc(animalImages.animalId), asc(animalImages.sortOrder), asc(animalImages.id));
 
   const byAnimal = new Map<number, AnimalImage[]>();
   for (const img of images) {

@@ -7,3 +7,7 @@ allowBuilds:
   esbuild: true
   # Plattformpaket kommt als optionale Abhaengigkeit, ein Build bringt nichts.
   unrs-resolver: false
+
+overrides:
+  "@esbuild-kit/core-utils>esbuild": "0.25.12"
+  "brace-expansion@>=5.0.0 <5.0.12": "5.0.12"

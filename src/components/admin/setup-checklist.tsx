@@ -1,3 +1,5 @@
+import { an } from "@/lib/anrede";
+import { getAdminAnrede } from "@/lib/anrede-server";
 import Link from "next/link";
 import type { ChecklistItem } from "@/lib/settings-status";
 export function ChecklistListe({ liste }: { liste: ChecklistItem[] }) {
@@ -41,6 +43,7 @@ export function ChecklistListe({ liste }: { liste: ChecklistItem[] }) {
   );
 }
 
-export function SetupChecklist({ liste }: { liste: ChecklistItem[] }) {
- return <section className="rounded-2xl bg-white p-6"><h2 className="mb-4 text-xl">Ihre Seite einrichten</h2><ChecklistListe liste={liste} /></section>;
+export async function SetupChecklist({ liste }: { liste: ChecklistItem[] }) {
+ const address = await getAdminAnrede();
+ return <details open className="rounded-2xl bg-white p-6"><summary className="mb-4 text-xl cursor-pointer">{an(address, "Ihre Seite einrichten", "Deine Seite einrichten")}</summary><ChecklistListe liste={liste} /></details>;
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPostByIdForAdmin } from "@/lib/posts";
-import { requireAdmin } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { PostForm } from "@/components/admin/post-form";
 
 export default async function BeitragBearbeitenPage({
@@ -9,7 +9,7 @@ export default async function BeitragBearbeitenPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { scope } = await requireAdmin();
+  const { scope } = await requireArea("posts");
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 

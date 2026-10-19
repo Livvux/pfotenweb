@@ -1,3 +1,5 @@
+import sharp from "sharp";
+import { normalizeUploadImage } from "../src/lib/upload-image";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -32,7 +34,7 @@ async function main() {
     await prepare();
     const dir = path.join(process.env.UPLOAD_DIR!, "t1");
     await mkdir(dir, { recursive: true });
-    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1kAAAAASUVORK5CYII=", "base64");
+    const png = await sharp({ create: { width: 3, height: 2, channels: 3, background: "#668899" } }).png().toBuffer();
     await writeFile(path.join(dir, "photo.png"), png);
     const [animal] = await db.insert(animals).values({ tenantId, slug: "balou", name: "Balou", species: "hund", description: "Beschreibung", birthYear: 2020 }).returning();
     await db.insert(animalImages).values({ tenantId, animalId: animal.id, url: "/uploads/t1/photo.png" });
@@ -46,13 +48,16 @@ async function main() {
     } finally { await archive.cleanup(); }
     const manifestPath = path.join(stage, "manifest.json");
     const original = JSON.parse(await readFile(manifestPath, "utf8"));
+    assert.equal(compatibleImport({ ...original, format: "pfotenweb-single", version: 1 }).data.version, 2, "Published native version 1 remains readable");
+    assert.throws(() => compatibleImport({ ...original, version: 3 }), "Future native versions are rejected");
     const extra = Buffer.from("additional document fixture");
     const digest = createHash("sha256").update(extra).digest("hex");
     await writeFile(path.join(stage, "images", `${digest}.pdf`), extra);
     const source = path.join(stage, "source.tar.gz");
 
-    for (const version of [14, 15]) {
+    for (const version of [14, 15, 16, 17, 18]) {
       const manifest = structuredClone(original);
+      manifest.format = "pfotenweb-single";
       manifest.version = version;
       manifest.inquiries[0].phone = "0123456789";
       manifest.animalProfiles = [{ animalId: animal.id, profile: { health: "gesund" } }];
@@ -67,9 +72,9 @@ async function main() {
       const before = JSON.stringify(manifest);
       const projected = compatibleImport(manifest);
       assert.equal(JSON.stringify(manifest), before, "Projection must not mutate the source");
-      assert.equal(projected.data.version, 1);
+      assert.equal(projected.data.version, 2);
       assert.equal("adoptionReviews" in projected.data, false);
-      for (const badVersion of [0, 16, 1.5, "15"]) {
+      for (const badVersion of [0, 19, 1.5, "15"]) {
         assert.throws(() => compatibleImport({ ...manifest, version: badVersion }));
       }
       await writeFile(manifestPath, JSON.stringify(manifest));
@@ -90,7 +95,7 @@ async function main() {
       assert.equal(imported.name, "Balou"); assert.equal(imported.birthYear, 2020);
       const [image] = await db.select().from(animalImages).where(eq(animalImages.tenantId, tenantId));
       assert.equal(image.animalId, imported.id);
-      assert.deepEqual(await readFile(path.join(process.env.UPLOAD_DIR!, image.url.replace("/uploads/", ""))), png);
+      assert.deepEqual(await readFile(path.join(process.env.UPLOAD_DIR!, image.url.replace("/uploads/", ""))), await normalizeUploadImage(png, ".png"));
       assert.equal(await db.$count(posts, eq(posts.tenantId, tenantId)), 1);
       const [inquiry] = await db.select().from(inquiries).where(eq(inquiries.tenantId, tenantId));
       assert.equal(inquiry.message, "Anfrage"); assert.equal(inquiry.animalId, imported.id);

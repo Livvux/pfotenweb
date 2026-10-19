@@ -15,3 +15,5 @@ Hinweisdateien unter /app/THIRD_PARTY_LICENSES.txt.
 
 Diese Ausgabe enthält keine Demo-Tierfotos. Die Software-Lizenz räumt keine
 Markenrechte an Pfotenweb ein.
+
+Noto Sans Regular (latin subset, @fontsource/noto-sans 5.2.8) is embedded locally in animal PDFs under the SIL Open Font License. See `public/fonts/OFL.txt`.

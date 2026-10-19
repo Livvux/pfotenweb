@@ -1,0 +1,552 @@
+/*
+ * Stilwelten: jede Welt verändert nicht nur Farben und Schriften, sondern auch
+ * Form, Rhythmus und Kopfzeile. Inhalte (.pw-site[data-style]) und der Rahmen
+ * der öffentlichen Seite ([data-website-style]: Kopfzeile, Fußzeile, Tierkarten)
+ * werden getrennt angesprochen, weil der Rahmen außerhalb des Renderers liegt.
+ * Wiesengrund ist die Vorgabe aller neuen Websites und bleibt bewusst zurückhaltend.
+ * Bewegung: Bedienreaktionen 200 ms, höchstens 4 px, Reduced Motion beachtet.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Wiesengrund: natürlich, warm, geborgen                              */
+/* ------------------------------------------------------------------ */
+.pw-site[data-style="wiesengrund"] .pw-hero .pw-picture {
+  box-shadow: 22px 22px 0 color-mix(in srgb, var(--pw-accent) 55%, transparent);
+}
+.pw-site[data-style="wiesengrund"] .pw-imageText .pw-picture {
+  box-shadow: -22px 22px 0 color-mix(in srgb, var(--pw-primary) 14%, transparent);
+}
+.pw-site[data-style="wiesengrund"] .pw-card {
+  border: 0;
+  box-shadow: 0 1px 2px #0000000f, 0 18px 40px -28px color-mix(in srgb, var(--pw-primary) 55%, transparent);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.pw-site[data-style="wiesengrund"] .pw-card:hover {
+  transform: translateY(-3px);
+}
+.pw-site[data-style="wiesengrund"] .pw-facts dt {
+  color: var(--color-brand-800);
+  border-bottom: 3px solid var(--pw-accent);
+  display: inline-block;
+}
+.pw-site[data-style="wiesengrund"] .pw-section[data-tone="brand"] .pw-facts dt {
+  color: var(--color-accent-200);
+}
+
+/* ------------------------------------------------------------------ */
+/* Seeblick: nordisch, klar, viel Luft                                  */
+/* ------------------------------------------------------------------ */
+/* .pw-site ist ein Container (Style-Containment): Zähler erst im ersten Abschnitt anlegen. */
+.pw-site[data-style="seeblick"] > section:first-of-type {
+  counter-reset: sb-step;
+}
+.pw-site[data-style="seeblick"] h1,
+.pw-site[data-style="seeblick"] h2 {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.pw-site[data-style="seeblick"] h2::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 2px;
+  margin-bottom: 22px;
+  background: var(--pw-accent);
+}
+.pw-site[data-style="seeblick"] [data-align="center"] h2::before {
+  margin-inline: auto;
+}
+.pw-site[data-style="seeblick"] .pw-section[data-columns="3"] h2 {
+  font-size: 1.45rem;
+  margin-bottom: 8px;
+}
+.pw-site[data-style="seeblick"] .pw-section[data-columns="3"] h2::before {
+  counter-increment: sb-step;
+  content: counter(sb-step, decimal-leading-zero);
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--color-brand-700);
+  font: 500 0.8rem/1 var(--font-body);
+  letter-spacing: 0.2em;
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--pw-primary) 30%, transparent);
+}
+.pw-site[data-style="seeblick"] .pw-section[data-columns="3"] .pw-copy {
+  margin: 0;
+}
+.pw-site[data-style="seeblick"] .pw-section[data-tone="plain"] + .pw-section[data-tone="plain"] {
+  border-top: 1px solid color-mix(in srgb, var(--pw-primary) 14%, transparent);
+}
+.pw-site[data-style="seeblick"] .pw-section[data-tone="soft"] {
+  background: color-mix(in srgb, var(--pw-accent) 22%, var(--pw-bg));
+}
+.pw-site[data-style="seeblick"] .pw-hero .pw-picture {
+  aspect-ratio: 1/1;
+  border-radius: 999px 999px var(--pw-radius) var(--pw-radius);
+}
+.pw-site[data-style="seeblick"] .pw-button {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78em;
+  min-height: 46px;
+  padding-inline: 26px;
+}
+.pw-site[data-style="seeblick"] .pw-card {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--pw-primary) 22%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+.pw-site[data-style="seeblick"] .pw-card .pw-picture {
+  aspect-ratio: 3/2;
+  border-radius: var(--pw-radius);
+}
+.pw-site[data-style="seeblick"] .pw-card > div {
+  padding: 18px 0 22px;
+}
+.pw-site[data-style="seeblick"] .pw-card h3 {
+  font-weight: 500;
+}
+.pw-site[data-style="seeblick"] .pw-card h3::after {
+  content: " →";
+  color: var(--color-brand-700);
+}
+.pw-site[data-style="seeblick"] .pw-facts {
+  gap: 0;
+}
+.pw-site[data-style="seeblick"] .pw-facts > div {
+  flex: 1 1 160px;
+  padding: 4px 28px;
+  border-left: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+.pw-site[data-style="seeblick"] .pw-facts dt {
+  font-weight: 400;
+}
+.pw-site[data-style="seeblick"] .pw-faq {
+  border-bottom-color: color-mix(in srgb, var(--pw-primary) 20%, transparent);
+}
+[data-website-style="seeblick"] .pw-site-header {
+  background: color-mix(in srgb, var(--pw-bg) 94%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--pw-primary) 14%, transparent);
+}
+[data-website-style="seeblick"] .pw-wordmark {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+[data-website-style="seeblick"] .pw-header-link {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+  border-radius: 0;
+}
+[data-website-style="seeblick"] .pw-header-link:hover {
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--pw-accent);
+}
+[data-website-style="seeblick"] .pw-header-cta {
+  background: transparent;
+  color: var(--color-brand-800);
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
+[data-website-style="seeblick"] .pw-header-cta:hover {
+  background: var(--color-brand-800);
+  color: #fff;
+}
+[data-website-style="seeblick"] .pw-animal-card {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pfotenfreunde: bunt, verspielt, laut                                 */
+/* ------------------------------------------------------------------ */
+.pw-site[data-style="pfotenfreunde"] {
+  --pf-line: 2.5px solid var(--pw-ink);
+  --pf-shadow: 6px 6px 0 var(--pw-ink);
+}
+.pw-site[data-style="pfotenfreunde"] h1,
+.pw-site[data-style="pfotenfreunde"] h2 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.pw-site[data-style="pfotenfreunde"] h2 {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--pw-accent) 80%, transparent);
+  text-decoration-thickness: 0.3em;
+  text-underline-offset: -0.12em;
+  text-decoration-skip-ink: none;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-section[data-tone="soft"] {
+  background:
+    radial-gradient(color-mix(in srgb, var(--pw-primary) 16%, transparent) 1.6px, transparent 1.7px) 0 0 / 22px 22px,
+    color-mix(in srgb, var(--pw-accent) 20%, var(--pw-bg));
+}
+.pw-site[data-style="pfotenfreunde"] .pw-section[data-tone="brand"] {
+  background: var(--color-brand-800);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-hero .pw-picture {
+  border-radius: 48% 48% 28px 28px;
+  border: var(--pf-line);
+  box-shadow: 10px 10px 0 var(--pw-accent);
+  rotate: 2deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-imageText .pw-picture,
+.pw-site[data-style="pfotenfreunde"] figure .pw-picture {
+  border: var(--pf-line);
+  box-shadow: var(--pf-shadow);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-button {
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+  border: var(--pf-line);
+  border-color: #1d1320;
+  border-radius: 999px;
+  box-shadow: 4px 4px 0 #1d1320;
+  font-weight: 800;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-button:hover {
+  background: var(--pw-accent);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1d1320;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-card {
+  background: #fff;
+  border: var(--pf-line);
+  box-shadow: var(--pf-shadow);
+  rotate: -1deg;
+  transition: rotate 0.2s, transform 0.2s;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-card:nth-child(even) {
+  rotate: 1.2deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-card:hover {
+  rotate: 0deg;
+  transform: translateY(-4px);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-card .pw-picture {
+  border-bottom: var(--pf-line);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-card h3 {
+  font-weight: 800;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-cards > .pw-picture {
+  background: #fff;
+  padding: 10px 10px 34px;
+  border: var(--pf-line);
+  box-shadow: var(--pf-shadow);
+  border-radius: 6px;
+  rotate: -2deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-cards > .pw-picture:nth-child(even) {
+  rotate: 2.5deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-facts {
+  gap: 20px;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-facts > div {
+  flex: 1 1 140px;
+  padding: 22px 24px;
+  border: 2.5px solid currentColor;
+  border-radius: 24px;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-facts > div:nth-child(odd) {
+  rotate: -1.5deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-facts > div:nth-child(even) {
+  rotate: 1.5deg;
+}
+.pw-site[data-style="pfotenfreunde"] .pw-facts dt {
+  font-weight: 800;
+  color: var(--color-accent-200);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-section:not([data-tone="brand"]) .pw-facts dt {
+  color: var(--color-brand-700);
+}
+.pw-site[data-style="pfotenfreunde"] .pw-faq {
+  border: var(--pf-line);
+  border-radius: 18px;
+  padding: 16px 22px;
+  margin-top: 14px;
+  background: #fff;
+}
+[data-website-style="pfotenfreunde"] .pw-site-header {
+  background: var(--pw-bg);
+  border-bottom: 3px solid #1d1320;
+}
+[data-website-style="pfotenfreunde"] .pw-wordmark {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+[data-website-style="pfotenfreunde"] .pw-header-link {
+  font-weight: 700;
+}
+[data-website-style="pfotenfreunde"] .pw-header-link:hover {
+  background: color-mix(in srgb, var(--pw-accent) 35%, transparent);
+}
+[data-website-style="pfotenfreunde"] .pw-header-cta {
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+  border: 2.5px solid #1d1320;
+  box-shadow: 3px 3px 0 #1d1320;
+  font-weight: 800;
+}
+[data-website-style="pfotenfreunde"] .pw-header-cta:hover {
+  background: var(--pw-accent);
+}
+[data-website-style="pfotenfreunde"] .pw-site-footer {
+  border-top: 3px solid #1d1320;
+}
+[data-website-style="pfotenfreunde"] .pw-animal-card {
+  border: 2.5px solid #1d1320;
+  box-shadow: 6px 6px 0 #1d1320;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lichtblick: editorial, ruhig, große Bilder                           */
+/* ------------------------------------------------------------------ */
+.pw-site[data-style="lichtblick"] > section:first-of-type {
+  counter-reset: lb-chapter;
+}
+.pw-site[data-style="lichtblick"] h1,
+.pw-site[data-style="lichtblick"] h2,
+.pw-site[data-style="lichtblick"] h3 {
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+.pw-site[data-style="lichtblick"] h1 {
+  font-size: clamp(2.6rem, 6.4cqw, 6.2rem);
+  line-height: 1.02;
+}
+.pw-site[data-style="lichtblick"] .pw-section:not(:first-child) h2::before {
+  counter-increment: lb-chapter;
+  content: "Kapitel " counter(lb-chapter, upper-roman);
+  display: block;
+  margin-bottom: 18px;
+  font: 600 0.7rem/1 var(--font-body);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+.pw-site[data-style="lichtblick"] .pw-section + .pw-section[data-tone="plain"] {
+  border-top: 1px solid color-mix(in srgb, var(--pw-ink) 16%, transparent);
+}
+.pw-site[data-style="lichtblick"] .pw-section[data-tone="soft"] {
+  background: color-mix(in srgb, var(--pw-accent) 26%, var(--pw-bg));
+}
+.pw-site[data-style="lichtblick"] .pw-section[data-tone="brand"] {
+  background: #1f201d;
+}
+.pw-site[data-style="lichtblick"] [data-align="center"] .pw-copy {
+  margin-inline: auto;
+}
+.pw-site[data-style="lichtblick"] .pw-section[data-columns="1"] [data-align="center"] > div:not([class]) .pw-copy {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(1.35rem, 2.4cqw, 2rem);
+  line-height: 1.45;
+  max-width: 38ch;
+}
+.pw-site[data-style="lichtblick"] .pw-imageText .pw-copy::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: 3.6em;
+  line-height: 0.82;
+  padding: 6px 10px 0 0;
+}
+.pw-site[data-style="lichtblick"] .pw-button {
+  min-height: 44px;
+  padding: 10px 0;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-size: 0.74em;
+}
+.pw-site[data-style="lichtblick"] .pw-button:hover {
+  background: transparent;
+  transform: none;
+  letter-spacing: 0.3em;
+}
+.pw-site[data-style="lichtblick"] .pw-section[data-tone="brand"] .pw-button {
+  background: transparent;
+  color: #fff;
+}
+.pw-site[data-style="lichtblick"] .pw-picture {
+  filter: saturate(0.82) contrast(1.03);
+}
+.pw-site[data-style="lichtblick"] .pw-card {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.pw-site[data-style="lichtblick"] .pw-card .pw-picture {
+  aspect-ratio: 4/5;
+  filter: grayscale(0.55);
+  transition: filter 0.25s;
+}
+.pw-site[data-style="lichtblick"] .pw-card:hover .pw-picture {
+  filter: none;
+}
+.pw-site[data-style="lichtblick"] .pw-card > div {
+  padding: 16px 0 0;
+}
+.pw-site[data-style="lichtblick"] .pw-card h3 {
+  font-style: italic;
+  font-size: 1.6rem;
+}
+.pw-site[data-style="lichtblick"] .pw-card p {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7em;
+  margin-top: 6px;
+}
+.pw-site[data-style="lichtblick"] .pw-cards:has(> .pw-picture) {
+  grid-template-columns: 1.4fr 1fr 1fr;
+  align-items: end;
+}
+.pw-site[data-style="lichtblick"] .pw-cards > .pw-picture:first-child {
+  aspect-ratio: 4/5;
+}
+.pw-site[data-style="lichtblick"] .pw-facts dt {
+  font-size: 3.4em;
+  font-style: italic;
+}
+.pw-site[data-style="lichtblick"] .pw-facts dd {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.72em;
+}
+/* Vollflächiger Titel mit Text auf dem Bild, nur wenn ein Bild gesetzt ist. */
+.pw-site[data-style="lichtblick"] .pw-section:first-child:has(.pw-hero img) {
+  padding: 0;
+}
+.pw-site[data-style="lichtblick"] .pw-section:first-child:has(.pw-hero img) > .pw-section-inner {
+  max-width: none;
+}
+.pw-site[data-style="lichtblick"] .pw-hero:has(img) {
+  display: block;
+  position: relative;
+  color: #fff;
+}
+.pw-site[data-style="lichtblick"] .pw-hero:has(img)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #14120fd9 0%, #14120f66 45%, #14120f00 75%);
+  pointer-events: none;
+}
+.pw-site[data-style="lichtblick"] .pw-hero:has(img) > div {
+  position: absolute;
+  z-index: 1;
+  left: max(28px, calc((100% - var(--pw-width)) / 2));
+  bottom: clamp(32px, 7cqw, 88px);
+  max-width: min(820px, calc(100% - 56px));
+  text-align: left;
+}
+.pw-site[data-style="lichtblick"] .pw-hero:has(img) .pw-picture {
+  aspect-ratio: 21/10;
+  max-height: 86vh;
+  border-radius: 0;
+  filter: saturate(0.85);
+}
+.pw-site[data-style="lichtblick"] .pw-hero:has(img) .pw-copy {
+  max-width: 52ch;
+  color: #ffffffe0;
+}
+[data-website-style="lichtblick"] .pw-site-header {
+  background: var(--pw-bg);
+  border-bottom-color: color-mix(in srgb, var(--pw-ink) 18%, transparent);
+  backdrop-filter: none;
+}
+[data-website-style="lichtblick"] .pw-wordmark {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.9rem;
+}
+[data-website-style="lichtblick"] .pw-header-link {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  border-radius: 0;
+}
+[data-website-style="lichtblick"] .pw-header-link:hover {
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+[data-website-style="lichtblick"] .pw-header-cta {
+  border-radius: 0;
+  background: #1f201d;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+}
+[data-website-style="lichtblick"] .pw-site-footer {
+  background: #1f201d;
+}
+[data-website-style="lichtblick"] .pw-animal-card {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@container (max-width: 650px) {
+  .pw-site[data-style="pfotenfreunde"] .pw-card,
+  .pw-site[data-style="pfotenfreunde"] .pw-cards > .pw-picture {
+    rotate: 0deg;
+  }
+  .pw-site[data-style="seeblick"] .pw-facts > div {
+    padding: 4px 18px;
+  }
+  .pw-site[data-style="pfotenfreunde"] .pw-facts {
+    gap: 14px;
+  }
+  .pw-site[data-style="pfotenfreunde"] .pw-facts > div {
+    padding: 16px 18px;
+  }
+  .pw-site[data-style="lichtblick"] .pw-cards:has(> .pw-picture) {
+    grid-template-columns: 1fr;
+  }
+  .pw-site[data-style="lichtblick"] .pw-hero:has(img) {
+    display: flex;
+    flex-direction: column-reverse;
+    color: inherit;
+  }
+  .pw-site[data-style="lichtblick"] .pw-hero:has(img)::after {
+    display: none;
+  }
+  .pw-site[data-style="lichtblick"] .pw-hero:has(img) > div {
+    position: static;
+    max-width: none;
+    padding: 28px 20px 8px;
+  }
+  .pw-site[data-style="lichtblick"] .pw-hero:has(img) .pw-copy {
+    color: inherit;
+  }
+  .pw-site[data-style="lichtblick"] .pw-hero:has(img) .pw-picture {
+    aspect-ratio: 4/3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-site[data-style] .pw-card,
+  .pw-site[data-style] .pw-card .pw-picture,
+  .pw-site[data-style] .pw-button {
+    transition: none;
+  }
+  .pw-site[data-style] .pw-card:hover,
+  .pw-site[data-style] .pw-button:hover {
+    transform: none;
+  }
+  .pw-site[data-style="lichtblick"] .pw-button:hover {
+    letter-spacing: 0.24em;
+  }
+}

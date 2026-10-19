@@ -1,6 +1,9 @@
+import { normalizeUploadImage } from "./upload-image";
 import { randomBytes } from "node:crypto";
-import { mkdir, rm, unlink, writeFile, readdir, stat } from "node:fs/promises";
+import { mkdir, rm, writeFile, readdir, stat, realpath } from "node:fs/promises";
 import path from "node:path";
+import { db } from "@/db";
+import { mediaDeletions } from "@/db/schema";
 
 /**
  * Oeffentliche Uploads, nach Verein getrennt.
@@ -25,7 +28,8 @@ export async function saveFile(
   const dir = path.join(publicRoot(), tenantPrefix(tenantId));
   const name = `${randomBytes(12).toString("hex")}${ext}`;
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, name), buffer, { flag: "wx" });
+  const normalized = await normalizeUploadImage(buffer, ext);
+  await writeFile(path.join(dir, name), normalized, { flag: "wx" });
   return `/uploads/t${tenantId}/${name}`;
 }
 
@@ -44,12 +48,8 @@ export async function deleteFile(
   if (!url.startsWith(prefix)) return false;
   const name = url.slice(prefix.length);
   if (!name || name.includes("/") || name.includes("..")) return false;
-  try {
-    await unlink(path.join(publicRoot(), tenantPrefix(tenantId), name));
-    return true;
-  } catch {
-    return false;
-  }
+  await db.insert(mediaDeletions).values({ url }).onConflictDoNothing();
+  return true;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -144,4 +144,11 @@ export async function storageUsed(tenantId: number): Promise<number> {
     }
   }
   return bytes;
+}
+
+export async function privateMediaStorage(): Promise<boolean> {
+  const root = await realpath(publicRoot()).catch(() => path.resolve(publicRoot()));
+  const publicDir = await realpath(path.resolve("public")).catch(() => path.resolve("public"));
+  const relative = path.relative(publicDir, root);
+  return Boolean(relative && (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)));
 }

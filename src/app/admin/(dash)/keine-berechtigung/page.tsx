@@ -1,3 +1,5 @@
+import { an } from "@/lib/anrede";
+import { getAdminAnrede } from "@/lib/anrede-server";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { listOwners } from "@/lib/users";
@@ -10,6 +12,7 @@ import { listOwners } from "@/lib/users";
  * steht stattdessen, wer weiterhelfen kann.
  */
 export default async function KeineBerechtigungPage() {
+  const address = await getAdminAnrede();
   const eigen = await requireAdmin();
   // listOwners statt alle Konten laden und filtern: die Seite nennt nur die
   // Verantwortlichen.
@@ -18,15 +21,14 @@ export default async function KeineBerechtigungPage() {
   return (
     <div className="max-w-xl">
       <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
-        Diese Seite ist für Verantwortliche
+        Keine Berechtigung für diese Seite
       </h1>
       <p className="mt-3 text-ink/70">
-        Ihr Zugang darf Tiere, Aktuelles und Anfragen pflegen. Vereinsdaten und
-        Zugänge ändert, wer im Verein dafür verantwortlich ist.
+        {an(address, "Ihr Zugang hat keine Freigabe für diese Seite. Verantwortliche im Verein können die Bereichsrechte prüfen.", "Dein Zugang hat keine Freigabe für diese Seite. Verantwortliche im Verein können die Bereichsrechte prüfen.")}
       </p>
       {verantwortliche.length > 0 ? (
         <p className="mt-3 text-ink/70">
-          Wenden Sie sich an: {verantwortliche.join(", ")}.
+          {an(address, "Wenden Sie sich an:", "Wende dich an:")} {verantwortliche.join(", ")}.
         </p>
       ) : null}
       <Link

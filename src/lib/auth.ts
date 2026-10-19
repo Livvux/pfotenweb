@@ -1,114 +1,41 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
-import { sessions, users } from "@/db/schema";
-import {
-  requireTenant,
-  scopeOf,
-  type Tenant,
-  type TenantScope,
-} from "@/lib/tenant";
+import { users, authSessions, tenants } from "@/db/schema";
+import { requireTenant, scopeOf, type Tenant, type TenantScope } from "./tenant";
+import { auth } from "./auth-config";
 import { verifyPassword } from "./password";
-import {
-  SESSION_COOKIE,
-  cookieOptions,
-  hashToken,
-  newToken,
-} from "./session-token";
-import type { UserRole } from "./roles";
-
-const SESSION_DAYS = 30;
-
-/** Aus users.ts weitergereicht, damit Aufrufer nur ein Modul kennen muessen. */
+import { assertCurrentAccess, assertFreshAuthentication } from "./access";
+import { credentialHash } from "./auth-users";
+import { canAccess, type Area, type UserRole } from "./roles";
 export type { UserRole };
-
-export type AdminUser = {
-  id: number;
-  username: string;
-  role: UserRole;
-  tenant: Tenant;
-  scope: TenantScope;
-};
-
-async function createSession(tenantId: number, userId: number): Promise<void> {
-  const token = newToken();
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await db
-    .insert(sessions)
-    .values({ id: hashToken(token), tenantId, userId, expiresAt });
-  const jar = await cookies();
-  jar.set(SESSION_COOKIE, token, cookieOptions(expiresAt));
+export type AdminUser = { id: number; username: string; role: UserRole; permissions: string[]; tenant: Tenant; scope: TenantScope; sessionId: number; reauthenticatedAt: Date };
+export async function login(username: string, password: string): Promise<boolean> {
+  const [user] = await db.select({ active: users.active }).from(users).where(and(eq(users.tenantId, 1), eq(users.username, username)));
+  if (!user?.active) return false;
+  try {
+    await auth.api.signInUsername({ body: { username, password }, headers: await headers() });
+    return true;
+  } catch { return false; }
 }
-
-export async function login(
-  username: string,
-  password: string,
-): Promise<boolean> {
-  const tenant = await requireTenant();
-  // Benutzernamen sind nur je Verein eindeutig: "vorstand" darf es in jedem
-  // Verein geben. Deshalb gehoert der Verein zwingend in die Abfrage.
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(and(eq(users.tenantId, tenant.id), eq(users.username, username)));
-  if (!user) return false;
-  if (!(await verifyPassword(password, user.passwordHash))) return false;
-  await createSession(tenant.id, user.id);
-  // Gelegentlich abgelaufene Sessions aufräumen
-  await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
-  return true;
-}
-
-export async function logout(): Promise<void> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
-  if (token) {
-    await db.delete(sessions).where(eq(sessions.id, hashToken(token)));
-  }
-  jar.delete(SESSION_COOKIE);
-}
-
-/*
- * cache(): das Adminlayout und die jeweilige Seite verlangen beide den
- * angemeldeten Benutzer. Ohne die Deduplizierung liefe der Session-Join pro
- * Seitenaufruf doppelt.
- */
+export async function logout(): Promise<void> { await auth.api.signOut({ headers: await headers() }); }
 export const getAdminUser = cache(async (): Promise<AdminUser | null> => {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return null;
   const tenant = await requireTenant();
-  const [row] = await db
-    .select({ id: users.id, username: users.username, role: users.role })
-    .from(sessions)
-    .innerJoin(
-      users,
-      and(eq(sessions.userId, users.id), eq(users.tenantId, tenant.id)),
-    )
-    .where(
-      and(
-        eq(sessions.id, hashToken(token)),
-        // Doppelt gemoppelt mit Absicht: selbst wenn der Join oben durch einen
-        // Refactor kaputtgeht, bleibt die Session an ihren Verein gebunden.
-        eq(sessions.tenantId, tenant.id),
-        gt(sessions.expiresAt, new Date()),
-      ),
-    );
-  if (!row) return null;
-  // Der Verein wird mitgegeben, damit Aufrufer fuer eine Tarifpruefung nicht
-  // erneut requireTenant() bemuehen muessen.
-  return { ...row, tenant, scope: scopeOf(tenant.id) };
+  const [row] = await db.select({ user: { id: users.id, username: users.username, role: users.role, permissions: users.permissions, active: users.active }, sessionId: authSessions.id, reauthenticatedAt: authSessions.reauthenticatedAt }).from(users)
+    .innerJoin(authSessions, and(eq(authSessions.userId, users.id), eq(authSessions.id, Number(session.session.id))))
+    .where(and(eq(users.id, Number(session.user.id)), eq(users.tenantId, tenant.id), gt(authSessions.expiresAt, new Date())));
+  if (!row?.user.active) return null;
+  return { ...row.user, tenant, scope: scopeOf(tenant.id), sessionId: row.sessionId, reauthenticatedAt: row.reauthenticatedAt };
 });
-
 export async function requireAdmin(): Promise<AdminUser> {
   const user = await getAdminUser();
   if (!user) redirect("/admin/login");
   return user;
 }
-
 /**
  * Fuer alles, was den ganzen Verein betrifft: Vereinsdaten und Benutzer.
  *
@@ -127,8 +54,25 @@ export async function requireOwner(): Promise<AdminUser> {
   return user;
 }
 
-export async function recheckOwnerPassword(user: AdminUser, password: string): Promise<boolean> {
- if (user.role !== "owner" || password.length > 200) return false;
- const [account] = await db.select().from(users).where(and(eq(users.id, user.id), eq(users.tenantId, user.tenant.id)));
- return Boolean(account && await verifyPassword(password, account.passwordHash));
+export async function authorizeOwnerExport(user: AdminUser, password: string): Promise<boolean> {
+  if (password.length > 200) return false;
+  const hash = await credentialHash(user.id);
+  const validPassword = Boolean(hash && await verifyPassword(password, hash));
+  if (hash && !validPassword) return false;
+  try {
+    await db.transaction(async tx => {
+      await tx.select().from(tenants).where(eq(tenants.id, user.scope.tenantId)).for("update");
+      await assertCurrentAccess(tx, user, "owner");
+      if (validPassword) {
+        if (await credentialHash(user.id, tx) !== hash) throw new Error("Passwort wurde inzwischen geändert.");
+      } else await assertFreshAuthentication(tx, user);
+    });
+    return true;
+  } catch { return false; }
+}
+
+export async function requireArea(area: Area): Promise<AdminUser> {
+  const user = await requireAdmin();
+  if (!canAccess(user, area)) redirect("/admin/keine-berechtigung");
+  return user;
 }

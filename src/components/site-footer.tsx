@@ -6,7 +6,7 @@ export function SiteFooter({ settings }: { settings: TenantSettings }) {
   const address = addressLines(settings);
 
   return (
-    <footer className="mt-auto bg-brand-950 text-brand-100">
+    <footer className="pw-site-footer mt-auto bg-brand-950 text-brand-100">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-3">
         <div>
           <div className="flex items-center gap-2.5">

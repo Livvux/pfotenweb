@@ -14,11 +14,21 @@ jobs:
           POSTGRES_DB: pfotenweb
         ports: ['55439:5432']
         options: --health-cmd="pg_isready -U pfotenweb" --health-interval=5s --health-retries=10
+      mailpit:
+        image: axllent/mailpit@sha256:23fe39e81bde596a918000b3135c0f85dc8bb4c9ea6be274b051143f3e300387
+        ports: ['55440:1025', '55441:8025']
     env:
       DATABASE_URL: postgres://pfotenweb:ci-only-password@127.0.0.1:55439/pfotenweb
       UPLOAD_DIR: /tmp/pfotenweb-ci-uploads
-      SITE_URL: http://localhost:3000
-      E2E_BASE_URL: http://localhost:3000
+      SITE_URL: https://localhost:3443
+      E2E_BASE_URL: https://localhost:3443
+      E2E_HTTP_BASE_URL: http://localhost:3000
+      E2E_TLS_PORT: 3443
+      BETTER_AUTH_SECRET: ci-only-better-auth-secret-at-least-32-characters
+      SECURITY_MAIL_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: 55440
+      SMTP_FROM: verein@example.test
       INITIAL_ADMIN_USERNAME: vorstand
       INITIAL_ADMIN_PASSWORD: ci-only-admin-password
       INITIAL_ORG_NAME: CI Verein
@@ -31,15 +41,24 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck && pnpm lint && pnpm check
-      - run: pnpm db:migrate && pnpm check:import && pnpm setup && pnpm setup
+      - run: pnpm db:migrate && pnpm check:import && pnpm run setup && pnpm run setup
       - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium webkit
       - run: |
           pnpm start > /tmp/pfotenweb.log 2>&1 &
-          for attempt in $(seq 1 60); do curl -fsS http://localhost:3000/api/health && break; sleep 1; done
-          pnpm test:e2e
+          app_pid=$!
+          node --import tsx e2e/tls-proxy-process.ts > /tmp/pfotenweb-tls.log 2>&1 &
+          proxy_pid=$!
+          trap 'kill "$app_pid" "$proxy_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do curl -kfsS https://localhost:3443/api/health && break; sleep 1; done
+          curl -kfsS https://localhost:3443/api/health
+          pnpm test:e2e --browser=chromium
+          pnpm test:e2e --browser=webkit
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-failure
-          path: test-results
+          path: |
+            test-results
+            /tmp/pfotenweb.log
+            /tmp/pfotenweb-tls.log
