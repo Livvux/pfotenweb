@@ -1,3 +1,4 @@
+import { renderMail, type MailTemplate } from "./mail-render";
 import nodemailer, { type Transporter } from "nodemailer";
 
 type ContactNotification = {
@@ -10,6 +11,8 @@ type ContactNotification = {
   orgName?: string;
   /** Zieladresse dieses Vereins. Ohne sie greift die globale ENV. */
   notifyEmail?: string;
+  template?: MailTemplate;
+  color?: string;
 };
 
 let transporter: Transporter | undefined;
@@ -19,6 +22,8 @@ function getTransporter(): Transporter {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === "true",
+    connectionTimeout: 15000,
+    socketTimeout: 30000,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
@@ -43,18 +48,22 @@ export async function sendContactNotification(
   // Absenderdomain bleibt die der Plattform: eine fremde Domain ohne deren
   // DKIM in From zu setzen laesst die Mails zuverlaessig im Spam landen.
   const fromAddress = process.env.SMTP_FROM ?? to;
-  await getTransporter().sendMail({
-    from: data.orgName ? `"${data.orgName}" <${fromAddress}>` : fromAddress,
-    to,
-    replyTo: data.email,
-    subject,
-    text: [
-      `Von: ${data.name} <${data.email}>`,
-      data.animalId ? `Bezug: Tier #${data.animalId}` : null,
-      "",
-      data.message,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+  const text = [
+    `Von: ${data.name} <${data.email}>`,
+    data.animalId ? `Bezug: Tier #${data.animalId}` : null,
+    "",
+    data.message,
+  ].filter(Boolean).join("\n");
+  await sendMessage({ to, replyTo: data.email, subject, text, orgName: data.orgName ?? "Verein", template: data.template, color: data.color, fromAddress });
+
+}
+
+export async function sendMessage(data: { to: string; replyTo?: string; subject: string; text: string; orgName: string; template?: MailTemplate; color?: string; fromAddress?: string }) {
+  if (!process.env.SMTP_HOST || !(data.fromAddress ?? process.env.SMTP_FROM)) throw new Error("Mailversand ist nicht eingerichtet.");
+  const result = await getTransporter().sendMail({
+    from: { name: data.orgName, address: data.fromAddress ?? process.env.SMTP_FROM! },
+    to: data.to, replyTo: data.replyTo, subject: data.subject, text: data.text,
+    html: renderMail(data.text, data.orgName, data.template, data.color),
   });
+  if (result.rejected?.length || !result.accepted?.length) throw new Error("Mailserver hat die Nachricht nicht angenommen.");
 }

@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { randomBytes, scryptSync } from "node:crypto";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import { authAccounts, authSessions, tenants, users } from "../src/db/schema";
+import { auth } from "../src/lib/auth-config";
+import { issueChallenge, consumeChallenge } from "../src/lib/security-challenges";
+import { createCredentialUser } from "../src/lib/auth-users";
+async function main() {
+  assert.match(process.env.DATABASE_URL ?? "", /^postgres(?:ql)?:\/\/[^/]+@127\.0\.0\.1:55439\//);
+  assert.equal(await db.$count(tenants), 0, "Fresh disposable database required");
+  await db.insert(tenants).values({ id: 1 });
+  try {
+    const password = "QA old password with enough characters";
+    const salt = randomBytes(16).toString("hex");
+    const legacy = `scrypt:${salt}:${scryptSync(password.normalize("NFKC"), Buffer.from(salt, "hex"), 64).toString("hex")}`;
+    const user = await db.transaction(tx => createCredentialUser(tx, { tenantId: 1, username: "ExistingOwner", passwordHash: legacy, role: "owner", email: "owner@example.test", verifiedEmail: true }));
+    const headers = new Headers({ origin: new URL(process.env.SITE_URL!).origin });
+    const signed = await auth.api.signInUsername({ body: { username: "ExistingOwner", password }, headers, asResponse: true });
+    assert.equal(signed.status, 200, await signed.text());
+    assert.ok(signed.headers.get("set-cookie"));
+    assert.equal(await db.$count(authSessions), 1);
+    const [account] = await db.select().from(authAccounts).where(eq(authAccounts.userId, user.id));
+    assert.ok(account.password, "Credential remains associated with the existing numeric user");
+    await assert.rejects(auth.api.signInUsername({ body: { username: "ExistingOwner", password: "wrong-password" }, headers }));
+    await auth.api.signInMagicLink({ body: { email: "owner@example.test", callbackURL: "/admin" }, headers });
+    const mail = await (await fetch("http://127.0.0.1:55441/api/v1/message/latest")).json() as { Text: string };
+    const token = /#token=([A-Za-z0-9_%.-]+)/.exec(mail.Text)?.[1];
+    assert.ok(token, "Magic link is delivered as a fragment");
+    const verified = await auth.api.magicLinkVerify({ query: { token: decodeURIComponent(token) }, headers, asResponse: true });
+    assert.equal(verified.status, 200, "Verification must not throw a callback redirect");
+    assert.ok(verified.headers.get("set-cookie"));
+    const replay = await auth.api.magicLinkVerify({ query: { token: decodeURIComponent(token) }, headers, asResponse: true });
+    assert.notEqual(replay.status, 200, "Magic token can only be used once");
+    const challengeId = await issueChallenge({ kind: "login", userId: user.id, email: "owner@example.test" });
+    const codeMail = await (await fetch("http://127.0.0.1:55441/api/v1/message/latest")).json() as { Text: string };
+    const code = /\b(\d{6})\b/.exec(codeMail.Text)?.[1];
+    assert.ok(code);
+    const consumed = await db.transaction(tx => consumeChallenge(tx, challengeId, code, "login"));
+    assert.equal(consumed?.userId, user.id);
+    assert.equal(await db.transaction(tx => consumeChallenge(tx, challengeId, code, "login")), null);
+    const resetRequest = await auth.api.requestPasswordReset({ body: { email: "owner@example.test", redirectTo: "/admin/passwort-zuruecksetzen" }, headers });
+    assert.ok(resetRequest);
+    const resetMail = await (await fetch("http://127.0.0.1:55441/api/v1/message/latest")).json() as { Text: string };
+    const resetToken = /#token=([A-Za-z0-9_%.-]+)/.exec(resetMail.Text)?.[1]; assert.ok(resetToken);
+    const newPassword = "QA new password after verified reset";
+    await auth.api.resetPassword({ body: { token: decodeURIComponent(resetToken), newPassword }, headers });
+    assert.equal(await db.$count(authSessions), 0, "Password reset revokes all existing sessions");
+    const newLogin = await auth.api.signInUsername({ body: { username: "ExistingOwner", password: newPassword }, headers, asResponse: true }); assert.equal(newLogin.status, 200);
+    await assert.rejects(auth.api.signInUsername({ body: { username: "ExistingOwner", password }, headers }));
+    await db.update(users).set({ active: false }).where(eq(users.id, user.id));
+    await assert.rejects(auth.api.signInUsername({ body: { username: "ExistingOwner", password: newPassword }, headers }));
+    const hidden = await auth.handler(new Request(`${process.env.SITE_URL}/api/auth/pfotenweb/verified-session`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: user.id }) }));
+    assert.equal(hidden.status, 404, "Verified session endpoint must remain server-only");
+    console.log("Existing legacy credential, session creation, invalid password, deactivation and server-only endpoint: OK");
+  } finally { await db.delete(tenants).where(eq(tenants.id, 1)); }
+}
+main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminUser } from "@/lib/auth";
+import { CodeFlow, MailRequestForm, PasskeyLogin } from "@/components/security-forms";
 import { LoginForm } from "@/components/login-form";
 import { BrandMark } from "@/components/brand-mark";
 import { TenantTheme } from "@/components/tenant-theme";
@@ -33,7 +34,7 @@ export default async function LoginPage() {
             Nur für berechtigte Vereinsmitglieder.
           </p>
         </div>
-        <LoginForm />
+        <div className="space-y-6"><section aria-label="Mit E-Mail-Code anmelden"><h2 className="mb-3 font-semibold">Mit E-Mail-Code anmelden</h2><CodeFlow kind="login"/></section><details open><summary className="cursor-pointer py-3 font-semibold">Mit Benutzername und Passwort anmelden</summary><LoginForm/></details><PasskeyLogin/><details><summary className="cursor-pointer py-3 font-semibold">Einmaligen Login-Link verwenden</summary><MailRequestForm mode="magic"/></details><Link className="block underline" href="/admin/zugang-wiederherstellen">Zugang wiederherstellen</Link></div>
         <Link
           href="/"
           className="mt-6 block text-center text-sm text-stone-500 transition hover:text-stone-700"

@@ -6,25 +6,33 @@ test("Single-Installation: Anmeldung, Bilder, Export und keine Plattform",async(
  const errors:string[]=[];
  page.on("pageerror",e=>errors.push(e.message));
  for (const url of ["/plattform","/plattform/registrieren","/preise","/admin/abrechnung","/api/stripe/webhook"]) expect((await request.get(url)).status()).toBe(404);
+ await page.waitForLoadState("networkidle");
  await page.goto("/");
  await expect(page.getByRole("heading").first()).toBeVisible();
+ await page.waitForLoadState("networkidle");
  await page.goto("/admin/login");
  await page.getByLabel("Benutzername").fill(process.env.INITIAL_ADMIN_USERNAME!);
  await page.getByLabel("Passwort").fill(process.env.INITIAL_ADMIN_PASSWORD!);
- await page.getByRole("button",{name:"Anmelden"}).click();
+ await page.getByRole("button",{name:"Anmelden",exact:true}).click();
  await page.waitForURL("/admin");
+ await page.getByRole("dialog").waitFor({state:"visible",timeout:1500}).then(async () => { await page.getByRole("button",{name:"Rundgang überspringen",exact:true}).click(); await expect(page.getByRole("dialog")).not.toBeVisible(); }).catch(() => {});
+ await page.waitForLoadState("networkidle");
  await page.goto("/admin/tiere");
  await expect(page.getByRole("heading",{name:"Tiere",exact:true})).toBeVisible();
+ await page.waitForLoadState("networkidle");
  await page.goto("/admin/daten");
  await page.getByLabel("Ihr aktuelles Passwort").fill(process.env.INITIAL_ADMIN_PASSWORD!);
+ await page.waitForLoadState("networkidle");
  const waiting=page.waitForEvent("download");
  await page.getByRole("button",{name:"Export herunterladen"}).click();
  expect(await (await waiting).failure()).toBeNull();
  if (process.env.E2E_IMPORTED === "true") {
+ await page.waitForLoadState("networkidle");
  await page.goto("/tiere/balou");
  await expect(page.getByRole("heading",{name:"Balou",exact:true})).toBeVisible();
  await expect.poll(()=>page.locator("img").evaluateAll((images)=>images.every(img=>img instanceof HTMLImageElement && img.complete && img.naturalWidth>0))).toBe(true);
- } else { await page.goto("/tiere"); }
+ } else { await page.waitForLoadState("networkidle");
+ await page.goto("/tiere"); }
  await page.setViewportSize({width:390,height:844});
  await page.screenshot({path:"/tmp/pfotenweb-single-mobile.png",fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -101,21 +109,22 @@ test.describe("Tierfilter: Basisfunktion ohne neue Module", () => {
     await all.click();
     await expect(page).toHaveURL(/\/tiere$/);
     await expect(all).toHaveAttribute("aria-current", "true");
-    for (const name of Object.values(names)) {
+    for (const name of [names.dogAvailable, names.catAvailable]) {
       await expect(page.getByText(name, { exact: true })).toBeVisible();
     }
+    await expect(page.getByText(names.dogReserved, { exact: true })).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
   const cases = [
-    { query: "species=hund", visible: ["dogAvailable", "dogReserved"], active: ["Hund"] },
+    { query: "species=hund", visible: ["dogAvailable"], active: ["Hund", "Vermittelbar"] },
     { query: "species=hund&status=reserviert", visible: ["dogReserved"], active: ["Hund", "Reserviert"] },
-    { query: "art=katze&species=hund", visible: ["catAvailable"], active: ["Katze"] },
-    { query: "art=ungueltig&species=hund", visible: ["dogAvailable", "dogReserved"], active: ["Hund"] },
-    { query: "art=hund&art=katze&species=hund", visible: Object.keys(names), active: ["Alle"] },
-    { query: "species=hund&species=katze", visible: Object.keys(names), active: ["Alle"] },
-    { query: "art=hund&status=reserviert&status=vermittelbar", visible: ["dogAvailable", "dogReserved"], active: ["Hund"] },
-    { query: "art=constructor&status=toString", visible: Object.keys(names), active: ["Alle"] },
+    { query: "art=katze&species=hund", visible: ["catAvailable"], active: ["Katze", "Vermittelbar"] },
+    { query: "art=ungueltig&species=hund", visible: ["dogAvailable"], active: ["Hund", "Vermittelbar"] },
+    { query: "art=hund&art=katze&species=hund", visible: ["dogAvailable", "catAvailable"], active: ["Alle", "Alle Arten", "Vermittelbar"] },
+    { query: "species=hund&species=katze", visible: ["dogAvailable", "catAvailable"], active: ["Alle", "Alle Arten", "Vermittelbar"] },
+    { query: "art=hund&status=reserviert&status=vermittelbar", visible: ["dogAvailable"], active: ["Hund", "Vermittelbar"] },
+    { query: "art=constructor&status=toString", visible: ["dogAvailable", "catAvailable"], active: ["Alle", "Alle Arten", "Vermittelbar"] },
   ];
   for (const { query, visible, active } of cases) {
     test(`Geteilte und ungültige Links: ${query}`, async ({ page }) => {

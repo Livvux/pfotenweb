@@ -1,5 +1,7 @@
 "use client";
 
+import { an } from "@/lib/anrede";
+import { useAnrede } from "@/components/anrede-provider";
 import { useActionState } from "react";
 import type { Post } from "@/lib/posts";
 import { createPost, updatePost, type PostFormState } from "@/lib/actions/posts";
@@ -8,6 +10,7 @@ import { CheckboxField, FormAlert, TextArea, TextField } from "./fields";
 const initial: PostFormState = {};
 
 export function PostForm({ post }: { post?: Post }) {
+  const address = useAnrede();
   const [state, formAction, pending] = useActionState(
     post ? updatePost : createPost,
     initial,
@@ -40,7 +43,7 @@ export function PostForm({ post }: { post?: Post }) {
         name="published"
         label="Veröffentlicht (öffentlich sichtbar)"
         defaultChecked={post?.published ?? false}
-        hint="Ohne Häkchen bleibt der Beitrag ein Entwurf, den nur Sie sehen."
+        hint={an(address, "Ohne Häkchen bleibt der Beitrag ein Entwurf, den nur Sie sehen.", "Ohne Häkchen bleibt der Beitrag ein Entwurf, den nur du siehst.")}
       />
 
       {/* Genau ein role="alert" pro Formular, siehe Kommentar in fields.tsx */}

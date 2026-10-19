@@ -1,3 +1,6 @@
+import { PageRenderer } from "@/components/website/renderer";
+import { websiteContent } from "@/lib/website/content";
+import { an, parseAnrede } from "@/lib/anrede";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireTenantWithSettings } from "@/lib/tenant";
@@ -11,7 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function VereinPage() {
-  const { settings } = await requireTenantWithSettings();
+  const { settings, scope } = await requireTenantWithSettings();
+  const site = settings.website?.published;
+  const page = site?.pages.find(p => p.slug === "verein");
+  if (site && page) return <main><PageRenderer site={site} page={page} content={await websiteContent(scope)} anrede={parseAnrede(settings.visitorAddress)}/></main>;
   const facts = settings.facts ?? [];
 
   return (
@@ -75,8 +81,7 @@ export default async function VereinPage() {
               Mitglied werden. Pate werden. Helfen.
             </h2>
             <p className="mt-2 max-w-xl text-brand-100">
-              Schreiben Sie uns – wir finden heraus, wie Ihr Engagement am
-              besten wirkt.
+              {an(parseAnrede(settings.visitorAddress), "Schreiben Sie uns – wir finden heraus, wie Ihr Engagement am besten wirkt.", "Schreib uns – wir finden heraus, wie dein Engagement am besten wirkt.")}
             </p>
           </div>
           <Link

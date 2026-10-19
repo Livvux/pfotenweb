@@ -19,3 +19,7 @@ docs
 !THIRD_PARTY_NOTICES.md
 !LICENSE
 !licenses/**
+
+# Browser test sources are not runtime inputs.
+e2e/
+playwright.config.ts

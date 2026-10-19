@@ -1,92 +1,33 @@
+import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { formatDate } from "@/lib/posts";
 import { deleteInquiry, toggleInquiryResolved } from "@/lib/actions/inquiries";
-import { getInquiries } from "@/lib/inquiries";
-import { requireAdmin } from "@/lib/auth";
+import { getInquiries, getInquiryCounts } from "@/lib/inquiries";
+import { getInquiryReplies } from "@/lib/inquiry-replies";
+import { requireArea } from "@/lib/auth";
 import { ConfirmButton } from "@/components/admin/confirm-button";
-
-export default async function AdminAnfragenPage() {
-  const { scope } = await requireAdmin();
-  const rows = await getInquiries(scope);
-
-  const open = rows.filter((r) => !r.inquiry.resolvedAt);
-  const done = rows.filter((r) => r.inquiry.resolvedAt);
-
-  return (
-    <div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-ink">
-        Anfragen
-      </h1>
-      <p className="mt-2 text-sm text-ink/50">
-        {open.length} offen · {done.length} erledigt
-      </p>
-
-      {[open, done].map((list, listIndex) =>
-        list.length === 0 && listIndex === 0 ? (
-          <p key="empty" className="mt-8 text-sm text-ink/50">
-            Keine offenen Anfragen.
-          </p>
-        ) : list.length === 0 ? null : (
-          <section key={listIndex} className="mt-6">
-            {listIndex === 1 ? (
-              <h2 className="mb-3 mt-10 text-sm font-semibold text-ink/60">
-                Erledigt
-              </h2>
-            ) : null}
-            <ul
-              className={`divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200 ${
-                listIndex === 1 ? "opacity-70" : ""
-              }`}
-            >
-              {list.map(({ inquiry: inq, animalName }) => (
-                <li key={inq.id} className="space-y-2 p-5">
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <p className="font-medium text-ink">{inq.name}</p>
-                    <a
-                      href={`mailto:${inq.email}`}
-                      className="text-sm text-brand-700 hover:text-brand-900"
-                    >
-                      {inq.email}
-                    </a>
-                    <span className="text-xs text-ink/40">
-                      {formatDate(inq.createdAt)}
-                    </span>
-                    {animalName ? (
-                      <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-800">
-                        zu {animalName}
-                      </span>
-                    ) : null}
-                  </div>
-                  {inq.subject ? (
-                    <p className="text-sm font-medium text-stone-700">
-                      {inq.subject}
-                    </p>
-                  ) : null}
-                  <p className="whitespace-pre-line leading-relaxed text-ink/70">
-                    {inq.message}
-                  </p>
-                  <div className="flex gap-2 pt-1">
-                    <form action={toggleInquiryResolved}>
-                      <input type="hidden" name="id" value={inq.id} />
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100"
-                      >
-                        {inq.resolvedAt ? "Wieder öffnen" : "Als erledigt markieren"}
-                      </button>
-                    </form>
-                    <form action={deleteInquiry}>
-                      <input type="hidden" name="id" value={inq.id} />
-                      <ConfirmButton
-                        question={`Die Anfrage von ${inq.name} wird gelöscht.`}
-                      />
-                    </form>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ),
-      )}
-    </div>
-  );
+import { InquiryReplyForm } from "@/components/admin/inquiry-reply-form";
+const deliveryLabels = { sending: "Übergabe begonnen · Ergebnis noch nicht bestätigt", sent: "An Mailserver übergeben · keine Zustellbestätigung", failed: "Übergabe fehlgeschlagen", uncertain: "Übergabe unklar · keine automatische Wiederholung", imported: "Importierter Verlauf · wird nicht versendet" };
+export default async function AdminAnfragenPage({ searchParams }: PageProps<"/admin/anfragen">) {
+  const { scope } = await requireArea("inquiries");
+  const params = await searchParams;
+  const filter = params.status === "done" ? "done" : params.status === "all" ? "all" : "open";
+  const counts = await getInquiryCounts(scope);
+  const total = filter === "open" ? counts.open : filter === "done" ? counts.done : counts.open + counts.done;
+  const pages = Math.max(1, Math.ceil(total / 24));
+  const current = Math.min(pages, Math.max(1, Number.parseInt(typeof params.seite === "string" ? params.seite : "1", 10) || 1));
+  const rows = await getInquiries(scope, filter, (current - 1) * 24);
+  const replies = new Map(await Promise.all(rows.map(async row => [row.inquiry.id, await getInquiryReplies(scope, row.inquiry.id)] as const)));
+  return <div><h1 className="font-display text-3xl font-semibold">Anfragen</h1><p className="mt-2 text-sm">{counts.open} offen · {counts.done} erledigt</p>
+    <nav aria-label="Anfragestatus" className="mt-5 flex flex-wrap gap-3">{([["open", "Offen"], ["done", "Erledigt"], ["all", "Alle"]] as const).map(([value, label]) => <Link key={value} href={`/admin/anfragen?status=${value}`} aria-current={filter === value ? "page" : undefined} className={`admin-button ${filter === value ? "admin-primary" : ""}`}>{label}</Link>)}</nav>
+    {!rows.length && <p className="mt-8">Keine Anfragen in dieser Auswahl.</p>}
+    <ul className="mt-6 space-y-3">{rows.map(({ inquiry, animalName }) => <li key={inquiry.id} className="rounded-2xl border border-stone-200 bg-white p-5"><details>
+      <summary className="cursor-pointer"><span className="font-semibold">{inquiry.name}</span><span className="ml-3 text-sm">{formatDate(inquiry.createdAt)}</span>{animalName && <span className="ml-3 text-sm">zu {animalName}</span>}<span className="mt-1 block text-sm">{inquiry.subject ?? inquiry.message.slice(0, 100)}</span></summary>
+      <div className="mt-4 space-y-4"><a className="break-all underline" href={`mailto:${inquiry.email}`}>{inquiry.email}</a><p className="whitespace-pre-line">{inquiry.message}</p>
+        <section aria-label="Antwortverlauf" className="space-y-3">{replies.get(inquiry.id)?.map(reply => <article key={reply.id} className="rounded-xl bg-stone-50 p-4"><p className="text-xs">{reply.authorName} · {formatDate(reply.createdAt)} · {deliveryLabels[reply.deliveryStatus]}</p><p className="mt-2 whitespace-pre-line">{reply.body}</p></article>)}</section>
+        <InquiryReplyForm inquiryId={inquiry.id} requestId={randomUUID()} email={inquiry.email}/>
+        <div className="flex flex-wrap gap-3"><form action={toggleInquiryResolved}><input type="hidden" name="id" value={inquiry.id}/><button className="admin-button">{inquiry.resolvedAt ? "Wieder öffnen" : "Als erledigt markieren"}</button></form><form action={deleteInquiry}><input type="hidden" name="id" value={inquiry.id}/><ConfirmButton question="Anfrage und zugehörigen Antwortverlauf löschen?"/></form></div>
+      </div></details></li>)}</ul>
+    {pages > 1 && <nav aria-label="Anfrageseiten" className="mt-6 flex items-center gap-4">{current > 1 && <Link className="admin-button" href={`/admin/anfragen?status=${filter}&seite=${current - 1}`}>Zurück</Link>}<span>Seite {current} von {pages}</span>{current < pages && <Link className="admin-button" href={`/admin/anfragen?status=${filter}&seite=${current + 1}`}>Weiter</Link>}</nav>}
+  </div>;
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { an } from "@/lib/anrede";
+import { useAnrede } from "@/components/anrede-provider";
 import { useActionState } from "react";
 import type { TenantSettings } from "@/lib/tenant";
 import type { FormState } from "@/lib/form";
@@ -8,12 +10,13 @@ import {
   updateVereinImpressum,
   updateVereinKontakt,
 } from "@/lib/actions/settings";
-import { TextArea, TextField } from "./fields";
+import { SelectField, TextArea, TextField } from "./fields";
 import { SaveBar } from "./save-bar";
 
 const initial: FormState = {};
 
 export function IdentitaetForm({ settings }: { settings: TenantSettings }) {
+  const address = useAnrede();
   const [state, action, pending] = useActionState(
     updateVereinIdentitaet,
     initial,
@@ -61,8 +64,11 @@ export function IdentitaetForm({ settings }: { settings: TenantSettings }) {
         rows={3}
         defaultValue={settings.tagline}
         error={feld.tagline}
-        hint="Ein Satz über Ihren Verein. Steht in der Fußzeile und in Suchergebnissen."
+        hint={an(address, "Ein Satz über Ihren Verein. Steht in der Fußzeile und in Suchergebnissen.", "Ein Satz über deinen Verein. Steht in der Fußzeile und in Suchergebnissen.")}
       />
+      <SelectField name="visitorAddress" label="Anrede auf der Website" defaultValue={settings.visitorAddress} options={[{ value: "sie", label: "Sie" }, { value: "du", label: "Du" }]} />
+      <SelectField name="adminAddress" label="Anrede in der Verwaltung" defaultValue={settings.adminAddress} options={[{ value: "sie", label: "Sie" }, { value: "du", label: "Du" }]} />
+      <label className="flex items-center gap-2"><input type="checkbox" name="animationsEnabled" defaultChecked={settings.animationsEnabled} /> Dezente Einblendungen auf der Website</label>
       <SaveBar state={state} pending={pending} />
     </form>
   );

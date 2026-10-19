@@ -1,20 +1,24 @@
+import { an, parseAnrede } from "@/lib/anrede";
+import { publicAnimalFacts } from "@/lib/public-animal-facts";
+import { ShareAnimal } from "@/components/share-animal";
+import { getTenantSiteUrl } from "@/lib/tenant";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   SPECIES_LABELS,
   STATUS_LABELS,
-  ageText,
   getAnimalBySlug,
 } from "@/lib/animals";
 import { AnimalGallery } from "@/components/animal-gallery";
-import { requireActiveScope } from "@/lib/tenant";
+import { getSettings, requireActiveScope } from "@/lib/tenant";
 
 export async function generateMetadata(
   { params }: PageProps<"/tiere/[slug]">,
 ): Promise<Metadata> {
   const { slug } = await params;
-  const animal = await getAnimalBySlug(await requireActiveScope(), slug);
+  const scope = await requireActiveScope();
+  const animal = await getAnimalBySlug(scope, slug);
   if (!animal) return { title: "Tier nicht gefunden" };
   return {
     title: `${animal.name} – ${SPECIES_LABELS[animal.species]} vermitteln`,
@@ -26,21 +30,13 @@ export default async function AnimalDetailPage({
   params,
 }: PageProps<"/tiere/[slug]">) {
   const { slug } = await params;
-  const animal = await getAnimalBySlug(await requireActiveScope(), slug);
+  const scope = await requireActiveScope();
+  const animal = await getAnimalBySlug(scope, slug);
   if (!animal) notFound();
 
-  const facts: [string, string][] = [
-    ["Art", SPECIES_LABELS[animal.species]],
-    ["Geboren", animal.birthYear ? String(animal.birthYear) : "unbekannt"],
-    ...(ageText(animal) ? [["Alter", ageText(animal)] as [string, string]] : []),
-    ...(animal.breed ? ([["Rasse", animal.breed]] as [string, string][]) : []),
-    [
-      "Geschlecht",
-      animal.sex === "m" ? "männlich" : animal.sex === "w" ? "weiblich" : "unbekannt",
-    ],
-    ...(animal.size ? ([["Größe", animal.size]] as [string, string][]) : []),
-  ];
+  const facts = publicAnimalFacts(animal, animal.profile);
 
+  const settings = await getSettings(scope.tenantId);
   const available = animal.status === "vermittelbar";
 
   return (
@@ -73,6 +69,7 @@ export default async function AnimalDetailPage({
             </span>
           </div>
 
+          <ShareAnimal name={animal.name} url={`${await getTenantSiteUrl()}/tiere/${animal.slug}`} />
           <dl className="mt-6 divide-y divide-brand-100 rounded-2xl bg-white px-5 ring-1 ring-brand-100">
             {facts.map(([label, value]) => (
               <div
@@ -99,7 +96,7 @@ export default async function AnimalDetailPage({
           ) : (
             <p className="mt-8 rounded-2xl bg-bone px-5 py-4 text-sm text-ink/70">
               Für {animal.name} ist dieser Weg schon gegangen oder gerade in
-              Planung – schauen Sie sich gerne die anderen Tiere an.
+              {an(parseAnrede(settings?.visitorAddress), "Planung – schauen Sie sich gerne die anderen Tiere an.", "Planung – schau dir gerne die anderen Tiere an.")}
             </p>
           )}
         </div>

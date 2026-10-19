@@ -20,6 +20,8 @@ const spalten = {
   username: users.username,
   role: users.role,
   createdAt: users.createdAt,
+  active: users.active,
+  permissions: users.permissions,
 };
 
 /**
@@ -55,7 +57,7 @@ export async function listOwners(t: TenantScope): Promise<TeamUser[]> {
   return db
     .select(spalten)
     .from(users)
-    .where(and(eq(users.tenantId, t.tenantId), eq(users.role, "owner")))
+    .where(and(eq(users.tenantId, t.tenantId), eq(users.role, "owner"), eq(users.active, true)))
     .orderBy(users.username);
 }
 
@@ -70,7 +72,7 @@ export async function countOwners(
     .where(
       and(
         eq(users.tenantId, t.tenantId),
-        eq(users.role, "owner"),
+        eq(users.role, "owner"), eq(users.active, true),
         ausser === undefined ? undefined : ne(users.id, ausser),
       ),
     );

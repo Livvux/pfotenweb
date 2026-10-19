@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { formatDate, getAllPosts } from "@/lib/posts";
 import { deletePost } from "@/lib/actions/posts";
-import { requireAdmin } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { ConfirmButton } from "@/components/admin/confirm-button";
 
 export default async function AdminAktuellesPage() {
-  const { scope } = await requireAdmin();
+  const { scope } = await requireArea("posts");
   const all = await getAllPosts(scope);
 
   return (

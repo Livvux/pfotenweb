@@ -14,3 +14,11 @@ Diese Codebasis bleibt eine eigenständige Single-Verein-Edition. Vor jedem Push
 `python3 scripts/check-edition.py` und den vollständigen Veröffentlichungsdiff
 prüfen. Neue Dateien/Abhängigkeiten nur bewusst in der Freigabeliste ergänzen.
 Keine privaten Repository-Historien übernehmen. Umfang und Releases: `docs/editions.md`.
+
+## Lokale Installation und Abnahme
+
+- Das Projektskript heißt `setup`; ausdrücklich `pnpm run setup` verwenden. `pnpm setup` ist unter pnpm 11 ein anderer, eingebauter Befehl.
+- Vor dem Auth-Upgrade `BETTER_AUTH_SECRET` und `SECURITY_MAIL_KEY` konfigurieren. Migrationen erhalten Benutzer-IDs, Rollen und bestehende Passwortnachweise; alte Sitzungen werden nicht als neue Anmeldung übernommen.
+- `UPLOAD_DIR` außerhalb von `public` betreiben. Profil- und Entwurfsmedien bleiben privat; App und `media-cleanup` teilen Datenbank und Medienvolume.
+- Schreibende Selbsttests und E2E ausschließlich mit Wegwerf-DB auf `127.0.0.1:55439` und lokalen Medien unter `/tmp`. Mailtests verwenden ausschließlich eine lokale SMTP-Senke.
+- Produktionscookies für WebKit über den lokalen HTTPS-Testproxy prüfen; Cookies nicht für HTTP-Abnahmen abschwächen.

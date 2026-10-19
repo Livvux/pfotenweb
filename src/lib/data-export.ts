@@ -5,7 +5,8 @@ import path from "node:path";
 import { create } from "tar";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { animalImages, animals, inquiries, posts, tenantSettings } from "@/db/schema";
+import { animalImages, animals, inquiries, inquiryReplies, posts, tenantSettings, donationSettings, users } from "@/db/schema";
+import { mapStateMedia } from "./website/schema";
 import { publicRoot } from "./storage";
 import { exportSchema, type ExportData } from "./export-format";
 
@@ -24,12 +25,15 @@ export async function createDataExport(tenantId: number): Promise<{ file: string
       const [settings] = await tx.select().from(tenantSettings).where(eq(tenantSettings.tenantId, tenantId));
       if (!settings) throw new Error("Vereinsdaten fehlen.");
       return {
-        format: "pfotenweb-single" as const, version: 1 as const, exportedAt: new Date(),
+        format: "pfotenweb-self-hosted" as const, version: 2 as const, exportedAt: new Date(),
         settings: content(settings),
-        animals: (await tx.select().from(animals).where(eq(animals.tenantId, tenantId))).map(content),
+        donations: (await tx.select().from(donationSettings).where(eq(donationSettings.tenantId, tenantId)))[0] ?? null,
+        animals: (await tx.select().from(animals).where(eq(animals.tenantId, tenantId))).map(({ publicId: _publicId, ...row }) => { void _publicId; return content(row); }),
         images: (await tx.select().from(animalImages).where(eq(animalImages.tenantId, tenantId))).map(content),
         posts: (await tx.select().from(posts).where(eq(posts.tenantId, tenantId))).map(content),
         inquiries: (await tx.select().from(inquiries).where(eq(inquiries.tenantId, tenantId))).map(content),
+        inquiryReplies: (await tx.select().from(inquiryReplies).where(eq(inquiryReplies.tenantId, tenantId))).map(({ requestId: _request, ...row }) => { void _request; return content(row); }),
+        profiles: await tx.select({ username: users.username, displayName: users.displayName, teamTitle: users.profileRole, bio: users.bio, avatar: users.profileImage }).from(users).where(eq(users.tenantId, tenantId)),
         files: [] as ExportData["files"],
       };
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
@@ -55,6 +59,9 @@ export async function createDataExport(tenantId: number): Promise<{ file: string
     }
     data.settings.logoUrl = await include(data.settings.logoUrl);
     data.settings.heroImageUrl = await include(data.settings.heroImageUrl);
+    data.settings.website = await mapStateMedia(data.settings.website, async url => (await include(url))!);
+    data.settings.websiteMedia = await Promise.all(data.settings.websiteMedia.map(async image => ({ ...image, url: (await include(image.url))! })));
+    for (const profile of data.profiles) profile.avatar = await include(profile.avatar);
     for (const image of data.images) image.url = (await include(image.url))!;
     await writeFile(path.join(dir, "manifest.json"), JSON.stringify(exportSchema.parse(data)), { mode: 0o600 });
     const file = path.join(dir, "pfotenweb.tar.gz");

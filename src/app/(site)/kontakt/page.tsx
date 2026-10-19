@@ -1,3 +1,5 @@
+import { ShelterLocation } from "@/components/shelter-location";
+import { an, parseAnrede } from "@/lib/anrede";
 import type { Metadata } from "next";
 import { getAnimalBySlug } from "@/lib/animals";
 import { ContactForm } from "@/components/contact-form";
@@ -7,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const { settings } = await requireTenantWithSettings();
   return {
     title: "Kontakt & Anfahrt",
-    description: `Nehmen Sie Kontakt zu ${settings.orgName} auf, ob Vermittlungsanfrage, Patenschaft oder Frage.`,
+    description: an(parseAnrede(settings.visitorAddress), `Nehmen Sie Kontakt zu ${settings.orgName} auf, ob Vermittlungsanfrage, Patenschaft oder Frage.`, `Nimm Kontakt zu ${settings.orgName} auf, ob Vermittlungsanfrage, Patenschaft oder Frage.`),
   };
 }
 
@@ -15,6 +17,7 @@ export default async function KontaktPage({
   searchParams,
 }: PageProps<"/kontakt">) {
   const { settings, scope } = await requireTenantWithSettings();
+  const address = parseAnrede(settings.visitorAddress);
   const params = await searchParams;
   const tier = typeof params.tier === "string" ? params.tier : undefined;
   let subject: string | undefined;
@@ -42,13 +45,12 @@ export default async function KontaktPage({
       <div className="grid gap-12 lg:grid-cols-[2fr_3fr]">
         <div>
           <h1 className="font-display text-4xl font-semibold tracking-tight text-brand-900">
-            Wir freuen uns auf Sie
+            {an(address, "Wir freuen uns auf Sie", "Wir freuen uns auf dich")}
           </h1>
           <p className="mt-4 max-w-[55ch] leading-relaxed text-ink/70">
-            Ob Vermittlungsanfrage, Patenschaft oder Frage zum Verein –
-            schreiben Sie uns. Für einen Besuch vereinbaren Sie bitte vorher
-            telefonisch einen Termin.
+            {an(address, "Ob Vermittlungsanfrage, Patenschaft oder Frage zum Verein – schreiben Sie uns. Für einen Besuch vereinbaren Sie bitte vorher telefonisch einen Termin.", "Ob Vermittlungsanfrage, Patenschaft oder Frage zum Verein – schreib uns. Für einen Besuch vereinbare bitte vorher telefonisch einen Termin.")}
           </p>
+          <ShelterLocation location={settings.location} />
           <dl className="mt-8 space-y-4 text-sm">
             {details.map(([label, value]) => (
               <div key={label}>

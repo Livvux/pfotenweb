@@ -89,6 +89,8 @@ COPY --from=builder --chown=pfotenweb:pfotenweb /app/THIRD_PARTY_LICENSES.txt ./
 COPY --chown=pfotenweb:pfotenweb LICENSE THIRD_PARTY_NOTICES.md ./
 COPY --chown=pfotenweb:pfotenweb licenses ./licenses
 
+COPY --from=builder --chown=pfotenweb:pfotenweb /app/scripts/media-cleanup.mjs ./scripts/media-cleanup.mjs
+
 USER pfotenweb
 EXPOSE 3000
 

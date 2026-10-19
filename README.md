@@ -59,9 +59,9 @@ oder Bilder angelegt wurden:
 ```sh
 mkdir -p transfer
 # Archiv als transfer/pfotenweb-export.tar.gz ablegen
-docker compose stop app
+docker compose stop app media-cleanup
 docker compose run --rm import
-docker compose start app
+docker compose start app media-cleanup
 ```
 
 Teamkonten richten Sie anschließend neu ein. Abrechnung, Passwörter und Sitzungen
@@ -78,20 +78,20 @@ wird die Anwendung während der Sicherung kurz gestoppt:
 
 ```sh
 mkdir -p backup
-docker compose stop app
+docker compose stop app media-cleanup
 docker compose exec -T db pg_dump -U pfotenweb -d pfotenweb -Fc > backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -czf - -C /data/uploads . > backup/uploads.tar.gz
 docker compose run -T --rm --no-deps --entrypoint tar import -czf - -C /data/import-archives . > backup/import-archives.tar.gz
-docker compose start app
+docker compose start app media-cleanup
 ```
 
-Wiederherstellung auf einer passenden, leeren Installation, mit gestoppter App:
+Wiederherstellung auf einer passenden, leeren Installation, mit gestoppter App und Medienbereinigung:
 
 ```sh
 docker compose exec -T db pg_restore -U pfotenweb -d pfotenweb --clean --if-exists < backup/database.dump
 docker compose run -T --rm --no-deps --entrypoint tar app -xzf - -C /data/uploads < backup/uploads.tar.gz
 docker compose run -T --rm --no-deps --entrypoint tar import -xzf - -C /data/import-archives < backup/import-archives.tar.gz
-docker compose start app
+docker compose start app media-cleanup
 ```
 
 `--clean` ersetzt vorhandene Daten: vorher eine weitere Sicherung erstellen.
@@ -115,7 +115,7 @@ Sicherung erfordern; nicht einfach nur ein älteres Image starten.
 Farben, Logo, Texte und Vereinsdaten ändern Sie im Vereinszugang. Weitergehende
 Anpassungen erfolgen im Quelltext mit Next.js/TypeScript. Entwicklung:
 `pnpm install --frozen-lockfile`, `.env` für eine lokale Datenbank einrichten,
-`pnpm db:migrate`, `pnpm setup`, `pnpm dev`. Node.js 24 und pnpm 11 verwenden.
+`pnpm db:migrate`, `pnpm run setup`, `pnpm dev`. Node.js 24 und pnpm 11 verwenden.
 Prüfungen: `pnpm exec next typegen`, `pnpm typecheck`, `pnpm lint`, `pnpm build`.
 
 Für E-Mails optional SMTP konfigurieren. Ohne SMTP bleiben Kontaktanfragen in
@@ -144,12 +144,12 @@ Die Grenzen dieser Edition und der Update-Ablauf stehen in [Editionen](docs/edit
 | Installierter Stand | Lesbare Archivformate |
 | --- | --- |
 | Veröffentlichtes Release `v1.0.1` | 1 |
-| Dieser Entwicklungsstand (noch kein neues Release) | 1–15 |
+| Dieser Entwicklungsstand (noch kein neues Release) | 1–18 |
 
 Der Offline-Import dieses Entwicklungsstands liest das gemeinsame Archivformat
-bis Version 15. Der eigene Self-Hosted-Export bleibt bei Format 1. Tiere,
+bis Version 18. Der eigene Self-Hosted-Export bleibt bei Format 1. Tiere,
 Tierbilder, Beiträge, Anfragen und die unterstützten Vereinsfelder werden in die
-frisch eingerichtete, ansonsten leere Installation übernommen. App vorher stoppen.
+frisch eingerichtete, ansonsten leere Installation übernommen. App und Medienbereinigung vorher stoppen.
 
 Zusätzliche Felder und Medien werden **nicht stillschweigend verworfen**. Dafür
 muss `IMPORT_ARCHIVE_DIR` auf ein absolutes, privates Verzeichnis außerhalb von
@@ -157,8 +157,9 @@ muss `IMPORT_ARCHIVE_DIR` auf ein absolutes, privates Verzeichnis außerhalb von
 das vollständige Quellarchiv dort unverändert mit Dateirechten `0600`. Die Ausgabe
 nennt alle zusätzlichen Datenbereiche und den Archivpfad. Diese Zusatzdaten sind
 archiviert, werden von dieser Edition aber nicht angezeigt oder weiterbearbeitet.
-Dazu zählen beispielsweise erweiterte Steckbriefe, Antwortverläufe, zusätzliche
-Kontaktfelder, Gestaltungseinstellungen und weitere Medien. Quellarchiv in die
+Dazu zählen beispielsweise Cloud-Kampagnen, Verträge, Rückmeldungen,
+Analytics-Historien und Videos. Gemeinsame Steckbriefwerte, Antwortverläufe,
+Website-Dokumente, Anreden, Standort und Bankspenden werden dagegen übernommen. Quellarchiv in die
 private Datensicherung aufnehmen; der normale Website-Export enthält nur die
 hier unterstützten Daten. Unbekannte zukünftige Versionen werden abgelehnt.
 
@@ -166,3 +167,77 @@ Bei Format 15 werden auch Bewertungseinstellungen, Rückmeldungen und zugehörig
 Medien ausschließlich im Originalarchiv erhalten. Sie werden weder öffentlich
 angezeigt noch als Benachrichtigungen erneut ausgeführt. Auch ein Archiv ohne
 Zusatzbereiche bleibt vor dem Umzug geschützt aufzubewahren.
+
+### Privater Medienspeicher und Entwürfe
+
+Der Website-Editor trennt Entwurf und Veröffentlichung und prüft beim Speichern
+seine Revision. Nur veröffentlichte Bilder sind öffentlich erreichbar; Bilder
+im Entwurf und im Verlauf bleiben Verantwortlichen vorbehalten. `UPLOAD_DIR`
+muss deshalb absolut sein und außerhalb von `public` liegen. Compose verwendet
+`/data/uploads`. Bei manueller Installation diesen Pfad vor dem Start setzen und
+bestehende Uploads bei gestoppter App dorthin verschieben; keine öffentliche
+Kopie privater Entwürfe behalten.
+
+Der Dienst `media-cleanup` entfernt Dateien erst, wenn keine Inhaltsreferenz mehr
+besteht. Löschabsichten werden zusammen mit der Inhaltsänderung gespeichert und
+nach Fehlern wiederholt. App und Medienbereinigung verwenden dieselbe Datenbank
+und denselben Uploadspeicher. Bei Sicherung und Wiederherstellung beide stoppen.
+Manuell läuft der Dienst mit `node scripts/media-cleanup.mjs`.
+
+### Anfrageantworten und Vereinsmails
+
+Antworten werden vor der SMTP-Übergabe dauerhaft im Anfrageverlauf erfasst.
+Derselbe Versandauftrag wird nie zweimal ausgeführt. „An Mailserver übergeben“
+ist keine Zustellbestätigung; bei einer unklaren Übergabe gibt es keine
+automatische Wiederholung. Anfragenlöschen entfernt auch den Antwortverlauf.
+Ohne `SMTP_HOST` und `SMTP_FROM` ist die Antwortfunktion gesperrt.
+Unter Erscheinungsbild stehen drei lokale HTML-Mailvorlagen mit unverändertem
+Klartext zur Auswahl; externe Schrift- und Bildabrufe entfallen.
+
+### Konten-Upgrade und private Profile
+
+Vor diesem Upgrade eine gemeinsame Datenbank-/Mediensicherung erstellen und
+App sowie Medienbereinigung stoppen. Zwei neue, dauerhaft aufbewahrte Secrets
+konfigurieren: `BETTER_AUTH_SECRET` mit mindestens 32 Zeichen und
+`SECURITY_MAIL_KEY` mit 32 zufälligen Bytes in Hex. Beispiele zur Erzeugung stehen
+in `.env.example`. Danach Migrationen und ausdrücklich `pnpm run setup` ausführen.
+Der gleichnamige eingebaute Befehl `pnpm setup` richtet ausschließlich pnpm ein.
+
+Bestehende Benutzernamen, numerische IDs, Rollen und Passwortnachweise bleiben
+erhalten. Bisherige Redaktionskonten behalten ihre drei bestehenden Fachrechte;
+neue Teamkonten starten ohne Fachrechte. Bestehende Sitzungen enden beim Upgrade.
+Eine Rückkehr zur alten Auth-Version benötigt die vollständige Sicherung vor
+der Migration; die neue Anwendung darf nicht mit einem zurückgesetzten Schema
+weiterlaufen.
+
+Unter Konto kann jede Person ein internes Profil und eine persönliche
+Sicherheitsadresse pflegen. E-Mail-Code, Einmal-Link und Wiederherstellung nutzen
+nur bestätigte persönliche Adressen. Einladungen erzeugen erst nach Bestätigung
+einen Zugang. Passkeys und Sicherheitsänderungen benötigen eine aktuelle
+Bestätigung. Profile sind nur im angemeldeten Vereinsteam sichtbar. Beim Import
+werden sie ausschließlich bereits bestehenden Benutzernamen zugeordnet;
+Zugänge, Rechte, Sicherheitsadressen und Passwörter werden nicht importiert.
+
+### Geführte Inhaltsübernahme und Tiersteckbriefe
+
+Verantwortliche können unter `/admin/import` CSV oder WordPress-WXR privat
+vorbereiten. UTF-8, höchstens 10 MiB und 1.000 Inhalte. Zuordnung, redaktionelle
+Korrekturen, Bilder und Sichtbarkeit werden vor der Übernahme bestätigt.
+Neuigkeiten starten als Entwurf. Die Seite verarbeitet begrenzte Pakete, solange
+sie geöffnet ist, und setzt nach erneutem Öffnen fort. Quellenkennungen vermeiden
+Wiederholungen; bereits übernommene Inhalte bleiben erhalten. Fehlende Bilder
+ersetzen oder ausdrücklich abwählen. Bildabrufe prüfen öffentliche IP-Adressen,
+Redirects und Größe; Dateien werden vollständig dekodiert. Vorbereitungen sind
+nicht Teil des portablen Website-Exports. App und Medienbereinigung vor einer
+konsistenten Sicherung stoppen.
+
+Der Tiereditor bietet einen PDF-Steckbrief mit QR-Code, Kopiertext, Downloads der
+eigenen Website-Bilder und manuelle Einstiegslinks zu shelta/TASSO. Es erfolgt
+keine automatische Registrierung oder externe Veröffentlichung. QR-Adressen
+bleiben beim Umbenennen stabil; ein Offline-Import erzeugt neue Kennungen.
+
+Neue Exporte kennzeichnen sich als `pfotenweb-self-hosted`, Version 2. Das alte
+Self-Hosted-Format `pfotenweb-single` Version 1 bleibt importierbar; gemeinsame
+Archive der Versionen 1–18 werden weiterhin bewusst projiziert. Die neue
+Kennzeichnung verhindert, dass erweiterte Profile und Website-Dokumente als
+inhaltlich unverändertes altes Format ausgegeben werden.

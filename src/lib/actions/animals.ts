@@ -1,12 +1,15 @@
 "use server";
 
+import { assertCurrentAccess } from "@/lib/access";
+
+import { parseAnimal } from "@/lib/animal-fields";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { animalImages, animals, tenants } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth";
+import { requireArea } from "@/lib/auth";
 import { slugify } from "@/lib/slug";
 import { checkImage, deleteFile, saveFile, ALLOWED_IMAGE_TYPES } from "@/lib/storage";
 import { type TenantScope } from "@/lib/tenant";
@@ -15,36 +18,6 @@ import { zodErrorState, type FormState } from "@/lib/form";
 /** Alias, damit Formular und Action denselben Zustand teilen. */
 export type AnimalFormState = FormState;
 
-const animalSchema = z.object({
-  name: z.string().trim().min(2, "Name ist zu kurz.").max(80),
-  species: z.enum(["hund", "katze", "kleintier", "vogel", "sonstiges"]),
-  breed: z
-    .string()
-    .trim()
-    .max(80)
-    .optional()
-    .transform((v) => v || undefined),
-  sex: z.enum(["m", "w", "u"]),
-  birthYear: z.coerce
-    .number()
-    .int()
-    .min(1990, "Geburtsjahr ungültig.")
-    .max(new Date().getFullYear(), "Geburtsjahr liegt in der Zukunft.")
-    .optional(),
-  size: z
-    .string()
-    .trim()
-    .max(20)
-    .optional()
-    .transform((v) => v || undefined),
-  status: z.enum(["vermittelbar", "reserviert", "vermittelt"]),
-  featured: z.boolean().optional().default(false),
-  description: z
-    .string()
-    .trim()
-    .min(20, "Beschreibung sollte mindestens 20 Zeichen enthalten.")
-    .max(5000),
-});
 
 /** Pro Absenden. Mehr passt nicht in das Body-Limit aus next.config.ts. */
 const MAX_PHOTOS = 8;
@@ -119,26 +92,14 @@ async function uniqueSlug(
   }
 }
 
-function parseAnimal(formData: FormData) {
-  return animalSchema.safeParse({
-    name: formData.get("name"),
-    species: formData.get("species"),
-    breed: formData.get("breed"),
-    sex: formData.get("sex"),
-    birthYear: formData.get("birthYear") || undefined,
-    size: formData.get("size"),
-    status: formData.get("status"),
-    featured: formData.get("featured") === "on",
-    description: formData.get("description"),
-  });
-}
 
 export async function createAnimal(
   _prev: AnimalFormState,
   formData: FormData,
 ): Promise<AnimalFormState> {
   // requireAdmin liefert den Verein gleich mit, ein zweiter Lookup entfaellt.
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
 
   const parsed = parseAnimal(formData);
   if (!parsed.success) {
@@ -152,6 +113,7 @@ export async function createAnimal(
     animalId = await db.transaction(async (tx) => {
       const [tenant] = await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
       if (!tenant) throw new Error("Verein nicht gefunden.");
+      await assertCurrentAccess(tx, actor, "animals");
       const slug = await uniqueSlug(scope, parsed.data.name, undefined, tx);
       const [animal] = await tx.insert(animals).values({ ...parsed.data, slug, tenantId: scope.tenantId }).returning({ id: animals.id });
       if (fotos.urls.length) await tx.insert(animalImages).values(fotos.urls.map((url, sortOrder) => ({ tenantId: scope.tenantId, animalId: animal.id, url, sortOrder })));
@@ -171,7 +133,8 @@ export async function updateAnimal(
   _prev: AnimalFormState,
   formData: FormData,
 ): Promise<AnimalFormState> {
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
 
   const id = z.coerce.number().int().positive().parse(formData.get("id"));
   const parsed = parseAnimal(formData);
@@ -184,36 +147,35 @@ export async function updateAnimal(
   ]);
   if (fotos.error) return { error: fotos.error };
 
-  const slug = await uniqueSlug(scope, parsed.data.name, id);
-  // Der Verein steht in derselben Query wie die ID. Kein "erst lesen, dann
-  // pruefen": das waere race-anfaellig.
-  const changed = await db
-    .update(animals)
-    .set({ ...parsed.data, slug, updatedAt: new Date() })
-    .where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id)))
-    .returning({ id: animals.id });
-  if (changed.length === 0) return { error: "Tier nicht gefunden." };
-
-  if (fotos.urls.length > 0) {
-    const [{ max }] = await db
-      .select({
-        max: sql<number>`coalesce(max(${animalImages.sortOrder}), -1)::int`,
-      })
-      .from(animalImages)
-      .where(
-        and(
-          eq(animalImages.tenantId, scope.tenantId),
-          eq(animalImages.animalId, id),
-        ),
-      );
-    await db.insert(animalImages).values(
-      fotos.urls.map((url, i) => ({
-        tenantId: scope.tenantId,
-        animalId: id,
-        url,
-        sortOrder: max + 1 + i,
-      })),
-    );
+  const revision = z.coerce.number().int().nonnegative().safeParse(formData.get("revision"));
+  if (!formData.has("revision") || !revision.success) {
+    await Promise.all(fotos.urls.map(url => deleteFile(scope.tenantId, url)));
+    return { error: "Ungültiger Bearbeitungsstand. Bitte neu laden." };
+  }
+  let slug: string;
+  try {
+    slug = await db.transaction(async tx => {
+      await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+      await assertCurrentAccess(tx, actor, "animals");
+      const [current] = await tx.select().from(animals).where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id))).for("update");
+      if (!current || current.revision !== revision.data) throw new Error("Das Tier wurde inzwischen geändert. Bitte den aktuellen Stand laden; Ihre Eingaben bleiben erhalten.");
+      if (current.birthYear !== (parsed.data.birthYear ?? null)) {
+        if (parsed.data.profile.age === current.profile.age) delete parsed.data.profile.age;
+        if (parsed.data.profile.birthDate === current.profile.birthDate) delete parsed.data.profile.birthDate;
+      }
+      const slug = await uniqueSlug(scope, parsed.data.name, id, tx);
+      await tx.update(animals).set({ ...parsed.data, birthYear: parsed.data.birthYear ?? null, breed: parsed.data.breed ?? null, size: parsed.data.size ?? null, revision: current.revision + 1, slug, updatedAt: new Date() })
+        .where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id)));
+      if (fotos.urls.length) {
+        const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${animalImages.sortOrder}), -1)::int` }).from(animalImages)
+          .where(and(eq(animalImages.tenantId, scope.tenantId), eq(animalImages.animalId, id)));
+        await tx.insert(animalImages).values(fotos.urls.map((url, i) => ({ tenantId: scope.tenantId, animalId: id, url, sortOrder: max + 1 + i })));
+      }
+      return slug;
+    });
+  } catch (error) {
+    await Promise.all(fotos.urls.map(url => deleteFile(scope.tenantId, url)));
+    return { error: error instanceof Error ? error.message : "Speichern fehlgeschlagen." };
   }
 
   revalidatePath("/tiere");
@@ -224,7 +186,8 @@ export async function updateAnimal(
 }
 
 export async function deleteAnimalImage(formData: FormData): Promise<void> {
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
   const imageId = z.coerce
     .number()
     .int()
@@ -232,7 +195,10 @@ export async function deleteAnimalImage(formData: FormData): Promise<void> {
     .parse(formData.get("imageId"));
   // returning() liefert die URL der geloeschten Zeile, damit auch die Datei
   // verschwindet. Ohne das bleibt jedes entfernte Foto auf der Platte liegen.
-  const removed = await db
+  const removed = await db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "animals");
+    return tx
     .delete(animalImages)
     .where(
       and(
@@ -241,6 +207,7 @@ export async function deleteAnimalImage(formData: FormData): Promise<void> {
       ),
     )
     .returning({ url: animalImages.url });
+  });
   await Promise.all(
     removed.map((image) => deleteFile(scope.tenantId, image.url)),
   );
@@ -248,23 +215,15 @@ export async function deleteAnimalImage(formData: FormData): Promise<void> {
 }
 
 export async function deleteAnimal(formData: FormData): Promise<void> {
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
   const id = z.coerce.number().int().positive().parse(formData.get("id"));
-  // Die Bilderzeilen raeumt der Fremdschluessel per ON DELETE CASCADE weg,
-  // die Dateien auf der Platte nicht. Also vorher die URLs holen.
-  const images = await db
-    .select({ url: animalImages.url })
-    .from(animalImages)
-    .where(
-      and(
-        eq(animalImages.tenantId, scope.tenantId),
-        eq(animalImages.animalId, id),
-      ),
-    );
-  await db
-    .delete(animals)
-    .where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id)));
-  await Promise.all(images.map((i) => deleteFile(scope.tenantId, i.url)));
+  await db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "animals");
+    // The image trigger stores deletion intents in this same transaction.
+    await tx.delete(animals).where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id)));
+  });
   revalidatePath("/tiere");
   revalidatePath("/");
   redirect("/admin/tiere");
@@ -282,7 +241,8 @@ export async function deleteAnimal(formData: FormData): Promise<void> {
  * eindeutig: aeltere Bilder stehen vorn, so wie sie heute schon angezeigt werden.
  */
 export async function moveAnimalImage(formData: FormData): Promise<void> {
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
   const imageId = z.coerce
     .number()
     .int()
@@ -291,6 +251,8 @@ export async function moveAnimalImage(formData: FormData): Promise<void> {
   const richtung = z.enum(["vor", "zurueck"]).parse(formData.get("richtung"));
 
   await db.transaction(async (tx) => {
+    await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "animals");
     const [bild] = await tx
       .select({ animalId: animalImages.animalId })
       .from(animalImages)
@@ -347,17 +309,22 @@ export async function moveAnimalImage(formData: FormData): Promise<void> {
  * E2E-Selektor in e2e/utils.ts wuerde sonst zwei Formulare treffen.
  */
 export async function setAnimalStatus(formData: FormData): Promise<void> {
-  const { scope } = await requireAdmin();
+  const actor = await requireArea("animals");
+  const { scope } = actor;
   const id = z.coerce.number().int().positive().parse(formData.get("tierId"));
   const status = z
     .enum(["vermittelbar", "reserviert", "vermittelt"])
     .parse(formData.get("status"));
 
-  const changed = await db
+  const changed = await db.transaction(async tx => {
+    await tx.select().from(tenants).where(eq(tenants.id, scope.tenantId)).for("update");
+    await assertCurrentAccess(tx, actor, "animals");
+    return tx
     .update(animals)
     .set({ status, updatedAt: new Date() })
     .where(and(eq(animals.tenantId, scope.tenantId), eq(animals.id, id)))
     .returning({ slug: animals.slug });
+  });
 
   revalidatePath("/admin/tiere");
   revalidatePath("/tiere");

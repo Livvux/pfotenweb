@@ -21,7 +21,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_HINTS: Record<UserRole, string> = {
   owner: "Darf alles, auch Vereinsdaten und Zugänge.",
-  editor: "Darf Tiere, Aktuelles und Anfragen pflegen.",
+  editor: "Darf nur ausdrücklich freigegebene Bereiche pflegen.",
 };
 
 export type TeamUser = {
@@ -29,4 +29,13 @@ export type TeamUser = {
   username: string;
   role: UserRole;
   createdAt: Date;
+  active: boolean;
+  permissions: string[];
 };
+
+export const areas = ["animals", "posts", "inquiries"] as const;
+export type Area = typeof areas[number];
+export const areaLabels: Record<Area, string> = { animals: "Tiere", posts: "Neuigkeiten", inquiries: "Anfragen" };
+export function canAccess(user: { role: UserRole; permissions: string[] }, area: Area): boolean {
+  return user.role === "owner" || user.permissions.includes(area);
+}

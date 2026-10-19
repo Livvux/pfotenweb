@@ -1,6 +1,6 @@
 import { db } from "../src/db";
-import { tenants, tenantSettings, users } from "../src/db/schema";
-import { hashPassword } from "../src/lib/password";
+import { tenants, tenantSettings } from "../src/db/schema";
+import { createCredentialUser } from "../src/lib/auth-users";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 async function main() {
@@ -10,7 +10,7 @@ async function main() {
   const config = z.object({ INITIAL_ADMIN_USERNAME: z.string().min(3).max(50), INITIAL_ADMIN_PASSWORD: z.string().min(16).max(200), INITIAL_ORG_NAME: z.string().min(2).max(60) }).parse(process.env);
   await tx.insert(tenants).values({ id: 1 });
   await tx.insert(tenantSettings).values({ tenantId: 1, orgName: config.INITIAL_ORG_NAME, shortName: config.INITIAL_ORG_NAME, heroHeadline: config.INITIAL_ORG_NAME });
-  await tx.insert(users).values({ tenantId: 1, username: config.INITIAL_ADMIN_USERNAME, passwordHash: await hashPassword(config.INITIAL_ADMIN_PASSWORD), role: "owner" });
+  await createCredentialUser(tx, { tenantId: 1, username: config.INITIAL_ADMIN_USERNAME, password: config.INITIAL_ADMIN_PASSWORD, role: "owner" });
  });
  console.log("Ersteinrichtung abgeschlossen. Vereinsdaten unter /admin ergänzen.");
 }
